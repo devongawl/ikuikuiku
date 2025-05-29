@@ -18,6 +18,9 @@ class RelationshipStoryGame {
   private assetLoader: AssetLoader;
   private characterController: KenneyCharacterController;
   private clock: THREE.Clock;
+  private cameraDistance: number = 5;
+  private cameraHeight: number = 8;
+  private debugPanel: HTMLDivElement | null = null;
 
   constructor() {
     // Initialize Three.js core
@@ -78,8 +81,8 @@ class RelationshipStoryGame {
       100
     );
     
-    // Set up isometric-style camera position
-    camera.position.set(15, 15, 15);
+    // Set up closer isometric-style camera position
+    camera.position.set(5, 8, 5);
     camera.lookAt(0, 0, 0);
 
     return camera;
@@ -98,6 +101,9 @@ class RelationshipStoryGame {
         this.smoothCameraFollow();
       }
     }) as EventListener);
+
+    // Mouse wheel zoom
+    window.addEventListener('wheel', (e) => this.handleWheel(e));
   }
 
   private onWindowResize(): void {
@@ -106,24 +112,28 @@ class RelationshipStoryGame {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
-  private async init(): Promise<void> {
+  private init(): void {
     // Register all scenes
     this.registerScenes();
 
     // Load character with woman skin
-    const character = await this.characterController.loadCharacter(
+    this.characterController.loadCharacter(
       'kenney_blocky-characters/Skins/Basic/skin_woman.png'
-    );
-    this.scene.add(character);
+    ).then((character) => {
+      this.scene.add(character);
+    });
 
     // Show welcome message
     this.dialogueSystem.show(
-      "Welcome to our story... Use WASD or arrow keys to move. Click on objects to discover our memories.",
+      "Welcome to our story... Use WASD or arrow keys to move one step at a time. Click on objects to discover our memories.",
       5000
     );
 
     // Load the first scene
-    await this.loadScene('office-scene');
+    this.loadScene('office-scene');
+
+    // Create debug panel
+    this.createDebugPanel();
 
     // Start the animation loop
     this.animate();
@@ -156,29 +166,34 @@ class RelationshipStoryGame {
 
   private adjustCameraForScene(scene: THREE.Group): void {
     // Smooth camera transition to focus on the scene
-    const characterPos = this.characterController.getPosition();
+    const characterPos = this.characterController.getSmoothPosition();
     const targetPosition = new THREE.Vector3(
-      characterPos.x + 15, 
-      15, 
-      characterPos.z + 15
+      characterPos.x + this.cameraDistance, 
+      this.cameraHeight, 
+      characterPos.z + this.cameraDistance
     );
-    const targetLookAt = characterPos.clone();
 
     // Simple camera positioning for now
     this.camera.position.copy(targetPosition);
-    this.camera.lookAt(targetLookAt);
+    this.camera.lookAt(characterPos);
   }
 
   private smoothCameraFollow(): void {
-    const characterPos = this.characterController.getPosition();
-    const idealOffset = new THREE.Vector3(15, 15, 15);
-    const idealLookAt = characterPos.clone();
-
-    const targetPosition = idealLookAt.clone().add(idealOffset);
+    // Use smooth grid position for camera movement (ignores hop animation)
+    const characterPos = this.characterController.getSmoothPosition();
     
-    // Smooth lerp to target
-    this.camera.position.lerp(targetPosition, 0.1);
-    this.camera.lookAt(idealLookAt);
+    // Smoother camera positioning for grid movement
+    const targetCameraPos = new THREE.Vector3(
+      characterPos.x + this.cameraDistance, 
+      this.cameraHeight, 
+      characterPos.z + this.cameraDistance
+    );
+    
+    // Smooth lerp for camera position
+    this.camera.position.lerp(targetCameraPos, 0.1);
+    
+    // Look at the character's smooth position
+    this.camera.lookAt(characterPos);
   }
 
   private showSceneTitle(name: string, description: string): void {
@@ -199,6 +214,33 @@ class RelationshipStoryGame {
     }, 3000);
   }
 
+  private createDebugPanel(): void {
+    this.debugPanel = document.createElement('div');
+    this.debugPanel.className = 'debug-panel';
+    this.debugPanel.innerHTML = `
+      <div class="debug-line"><span class="label">Grid Pos:</span> <span id="grid-pos">0, 0</span></div>
+      <div class="debug-line"><span class="label">Queue:</span> <span id="queue-length">0</span></div>
+      <div class="debug-line"><span class="label">Moving:</span> <span id="is-moving">false</span></div>
+    `;
+    document.body.appendChild(this.debugPanel);
+  }
+
+  private updateDebugPanel(): void {
+    if (!this.debugPanel) return;
+
+    const gridPos = this.characterController.getGridPosition();
+    const queueLength = this.characterController.getQueueLength();
+    const isMoving = this.characterController.isMoving();
+
+    const gridPosElement = this.debugPanel.querySelector('#grid-pos');
+    const queueElement = this.debugPanel.querySelector('#queue-length');
+    const movingElement = this.debugPanel.querySelector('#is-moving');
+
+    if (gridPosElement) gridPosElement.textContent = `${gridPos.x}, ${gridPos.z}`;
+    if (queueElement) queueElement.textContent = queueLength.toString();
+    if (movingElement) movingElement.textContent = isMoving ? 'true' : 'false';
+  }
+
   private animate(): void {
     requestAnimationFrame(this.animate.bind(this));
 
@@ -212,8 +254,24 @@ class RelationshipStoryGame {
     // Camera follows character smoothly
     this.smoothCameraFollow();
 
+    // Update debug panel
+    this.updateDebugPanel();
+
     // Render the scene
     this.renderer.render(this.scene, this.camera);
+  }
+
+  private handleWheel(event: WheelEvent): void {
+    event.preventDefault();
+    
+    // Adjust camera distance based on wheel delta
+    const zoomSpeed = 0.001;
+    this.cameraDistance += event.deltaY * zoomSpeed;
+    this.cameraHeight += event.deltaY * zoomSpeed * 0.8;
+    
+    // Clamp values
+    this.cameraDistance = Math.max(2, Math.min(20, this.cameraDistance));
+    this.cameraHeight = Math.max(3, Math.min(20, this.cameraHeight));
   }
 
   // Public methods for scene navigation

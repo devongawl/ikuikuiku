@@ -50,17 +50,17 @@ export class OfficeScene extends Scene {
       'kenney_city-kit-commercial_20/Models/GLB%20format/building-g.glb',
       'office-main'
     );
-    AssetLoader.prepareModel(mainBuilding, 0.5);
+    AssetLoader.prepareModel(mainBuilding, 0.2);
     mainBuilding.position.set(0, 0, -5);
     this.add(mainBuilding);
     this.buildings.push(mainBuilding);
 
     // Add surrounding buildings for context
     const buildingPositions = [
-      { file: 'building-a.glb', pos: [-15, 0, -5], scale: 0.5 },
-      { file: 'building-b.glb', pos: [15, 0, -5], scale: 0.5 },
-      { file: 'building-c.glb', pos: [-10, 0, 10], scale: 0.4 },
-      { file: 'building-d.glb', pos: [10, 0, 10], scale: 0.4 }
+      { file: 'building-a.glb', pos: [-8, 0, -5], scale: 0.2 },
+      { file: 'building-b.glb', pos: [8, 0, -5], scale: 0.2 },
+      { file: 'building-c.glb', pos: [-5, 0, 5], scale: 0.15 },
+      { file: 'building-d.glb', pos: [5, 0, 5], scale: 0.15 }
     ];
 
     for (const config of buildingPositions) {
@@ -84,8 +84,8 @@ export class OfficeScene extends Scene {
         'kenney_city-kit-commercial_20/Models/GLB%20format/detail-awning-wide.glb',
         'awning'
       );
-      AssetLoader.prepareModel(awning, 0.5);
-      awning.position.set(0, 1.5, -2);
+      AssetLoader.prepareModel(awning, 0.2);
+      awning.position.set(0, 1, -2);
       this.add(awning);
     } catch (error) {
       console.warn('Failed to load awning:', error);
