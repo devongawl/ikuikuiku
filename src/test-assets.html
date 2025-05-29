@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Asset Test</title>
+</head>
+<body>
+    <h1>Testing Asset Paths</h1>
+    <h2>Character Model:</h2>
+    <a href="kenney_blocky-characters/Models/Non-rigged/glTF/basicCharacter.gltf">Basic Character GLTF</a>
+    
+    <h2>Character Texture:</h2>
+    <img src="kenney_blocky-characters/Skins/Basic/skin_woman.png" width="200" alt="Woman skin">
+    
+    <h2>Building Model:</h2>
+    <a href="kenney_city-kit-commercial_20/Models/GLB%20format/building-g.glb">Building G GLB</a>
+    
+    <script>
+        // Test loading the character model
+        fetch('kenney_blocky-characters/Models/Non-rigged/glTF/basicCharacter.gltf')
+            .then(response => {
+                console.log('Character model response:', response.status, response.statusText);
+                return response.text();
+            })
+            .then(text => {
+                console.log('Character model content (first 100 chars):', text.substring(0, 100));
+            })
+            .catch(error => console.error('Failed to load character model:', error));
+            
+        // Test loading building
+        fetch('kenney_city-kit-commercial_20/Models/GLB%20format/building-g.glb')
+            .then(response => {
+                console.log('Building model response:', response.status, response.statusText);
+            })
+            .catch(error => console.error('Failed to load building model:', error));
+    </script>
+</body>
+</html> 

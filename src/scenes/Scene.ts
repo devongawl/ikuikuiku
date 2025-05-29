@@ -55,7 +55,8 @@ export class Scene extends THREE.Group {
     const groundSize = 100;
     const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
     const groundMaterial = new THREE.MeshLambertMaterial({ 
-      color: 0xF5F5DC // Beige base color from our palette
+      color: 0xF5F5DC, // Beige base color from our palette
+      side: THREE.DoubleSide // Make sure it's visible from both sides
     });
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.receiveShadow = true;
@@ -65,12 +66,12 @@ export class Scene extends THREE.Group {
   }
 
   protected setupLighting(): void {
-    // Ambient light for base illumination
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // Ambient light for base illumination - increased intensity
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     this.add(ambientLight);
 
     // Directional light for shadows
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
     dirLight.position.set(5, 10, 5);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 2048;

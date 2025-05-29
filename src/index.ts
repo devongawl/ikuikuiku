@@ -2,7 +2,10 @@ import * as THREE from 'three';
 import { SceneManager } from './systems/SceneManager';
 import { DialogueSystem } from './systems/DialogueSystem';
 import { InteractionSystem } from './systems/InteractionSystem';
+import { AssetLoader } from './systems/AssetLoader';
+import { KenneyCharacterController } from './systems/KenneyCharacterController';
 import { TestScene } from './scenes/TestScene';
+import { OfficeScene } from './scenes/OfficeScene';
 
 // Core game class
 class RelationshipStoryGame {
@@ -12,8 +15,9 @@ class RelationshipStoryGame {
   private sceneManager: SceneManager;
   private dialogueSystem: DialogueSystem;
   private interactionSystem: InteractionSystem;
+  private assetLoader: AssetLoader;
+  private characterController: KenneyCharacterController;
   private clock: THREE.Clock;
-  private playerCharacter: THREE.Group | null = null;
 
   constructor() {
     // Initialize Three.js core
@@ -28,9 +32,11 @@ class RelationshipStoryGame {
     this.camera = this.createCamera();
 
     // Initialize systems
+    this.assetLoader = new AssetLoader();
     this.sceneManager = new SceneManager();
     this.dialogueSystem = new DialogueSystem();
     this.interactionSystem = new InteractionSystem(this.camera, this.dialogueSystem);
+    this.characterController = new KenneyCharacterController(this.assetLoader);
     this.clock = new THREE.Clock();
 
     // Add scene manager container to main scene
@@ -73,7 +79,7 @@ class RelationshipStoryGame {
     );
     
     // Set up isometric-style camera position
-    camera.position.set(10, 10, 10);
+    camera.position.set(15, 15, 15);
     camera.lookAt(0, 0, 0);
 
     return camera;
@@ -85,7 +91,12 @@ class RelationshipStoryGame {
     // Listen for memory triggered events
     window.addEventListener('memoryTriggered', ((event: CustomEvent) => {
       console.log('Memory triggered:', event.detail);
-      // You can add special effects or scene transitions here
+      this.dialogueSystem.notify('Memory discovered!', 2000);
+      
+      // Follow character with camera when moving
+      if (event.detail.memory) {
+        this.smoothCameraFollow();
+      }
     }) as EventListener);
   }
 
@@ -99,14 +110,20 @@ class RelationshipStoryGame {
     // Register all scenes
     this.registerScenes();
 
+    // Load character with woman skin
+    const character = await this.characterController.loadCharacter(
+      'kenney_blocky-characters/Skins/Basic/skin_woman.png'
+    );
+    this.scene.add(character);
+
     // Show welcome message
     this.dialogueSystem.show(
-      "Welcome to our story... Click on objects to discover our memories together.",
-      3000
+      "Welcome to our story... Use WASD or arrow keys to move. Click on objects to discover our memories.",
+      5000
     );
 
     // Load the first scene
-    await this.loadScene('test-scene');
+    await this.loadScene('office-scene');
 
     // Start the animation loop
     this.animate();
@@ -115,9 +132,11 @@ class RelationshipStoryGame {
   private registerScenes(): void {
     // Register test scene
     this.sceneManager.registerScene('test-scene', new TestScene());
+    
+    // Register office scene
+    this.sceneManager.registerScene('office-scene', new OfficeScene());
 
     // TODO: Register other scenes as we create them
-    // this.sceneManager.registerScene('office', new OfficeScene());
     // this.sceneManager.registerScene('first-date', new FirstDateScene());
     // etc.
   }
@@ -129,18 +148,55 @@ class RelationshipStoryGame {
       
       // Adjust camera for the scene if needed
       this.adjustCameraForScene(scene);
+      
+      // Show scene title
+      this.showSceneTitle(scene.name, scene.description);
     }
   }
 
   private adjustCameraForScene(scene: THREE.Group): void {
     // Smooth camera transition to focus on the scene
-    // For now, just ensure we're looking at the center
-    const targetPosition = new THREE.Vector3(10, 10, 10);
-    const targetLookAt = new THREE.Vector3(0, 0, 0);
+    const characterPos = this.characterController.getPosition();
+    const targetPosition = new THREE.Vector3(
+      characterPos.x + 15, 
+      15, 
+      characterPos.z + 15
+    );
+    const targetLookAt = characterPos.clone();
 
-    // You can implement smooth transitions here
+    // Simple camera positioning for now
     this.camera.position.copy(targetPosition);
     this.camera.lookAt(targetLookAt);
+  }
+
+  private smoothCameraFollow(): void {
+    const characterPos = this.characterController.getPosition();
+    const idealOffset = new THREE.Vector3(15, 15, 15);
+    const idealLookAt = characterPos.clone();
+
+    const targetPosition = idealLookAt.clone().add(idealOffset);
+    
+    // Smooth lerp to target
+    this.camera.position.lerp(targetPosition, 0.1);
+    this.camera.lookAt(idealLookAt);
+  }
+
+  private showSceneTitle(name: string, description: string): void {
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'scene-title';
+    titleDiv.innerHTML = `<h2>${name}</h2><p>${description}</p>`;
+    document.body.appendChild(titleDiv);
+    
+    setTimeout(() => {
+      titleDiv.classList.add('visible');
+    }, 100);
+    
+    setTimeout(() => {
+      titleDiv.classList.remove('visible');
+      setTimeout(() => {
+        document.body.removeChild(titleDiv);
+      }, 500);
+    }, 3000);
   }
 
   private animate(): void {
@@ -151,11 +207,10 @@ class RelationshipStoryGame {
     // Update systems
     this.sceneManager.update(deltaTime);
     this.interactionSystem.update();
+    this.characterController.update(deltaTime, this.camera);
 
-    // Update player character if exists
-    if (this.playerCharacter) {
-      // Add any character animations or updates here
-    }
+    // Camera follows character smoothly
+    this.smoothCameraFollow();
 
     // Render the scene
     this.renderer.render(this.scene, this.camera);

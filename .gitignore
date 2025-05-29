@@ -18,4 +18,8 @@ dist/
 # Environment variables
 .env
 .env.local
-.env.*.local 
+.env.*.local
+
+# Kenney asset folders (keep symlinks but ignore actual folders)
+/kenney_city-kit-commercial_20/
+/kenney_blocky-characters/ 
