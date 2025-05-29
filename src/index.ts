@@ -6,6 +6,8 @@ import { AssetLoader } from './systems/AssetLoader';
 import { KenneyCharacterController } from './systems/KenneyCharacterController';
 import { TestScene } from './scenes/TestScene';
 import { OfficeScene } from './scenes/OfficeScene';
+import { ApartmentScene } from './scenes/ApartmentScene';
+import type { Memory } from './types';
 
 // Core game class
 class RelationshipStoryGame {
@@ -99,6 +101,18 @@ class RelationshipStoryGame {
       // Follow character with camera when moving
       if (event.detail.memory) {
         this.smoothCameraFollow();
+        
+        // Check if this is an exit door
+        const memory = event.detail.memory as Memory;
+        if (memory.object.userData.isExitDoor) {
+          const nextScene = memory.object.userData.nextScene;
+          if (nextScene) {
+            // Add a delay before transitioning
+            setTimeout(() => {
+              this.loadScene(nextScene);
+            }, 2000);
+          }
+        }
       }
     }) as EventListener);
 
@@ -121,16 +135,19 @@ class RelationshipStoryGame {
       'kenney_blocky-characters/Skins/Basic/skin_woman.png'
     ).then((character) => {
       this.scene.add(character);
+      
+      // Position character in the bedroom
+      this.characterController.setPosition(-6, 0, 0);
     });
 
     // Show welcome message
     this.dialogueSystem.show(
-      "Welcome to our story... Use WASD or arrow keys to move one step at a time. Click on objects to discover our memories.",
-      5000
+      "Tuesday Morning - September 15th...",
+      3000
     );
 
-    // Load the first scene
-    this.loadScene('office-scene');
+    // Load the apartment scene for Day We Met story
+    this.loadScene('apartment-scene');
 
     // Create debug panel
     this.createDebugPanel();
@@ -145,10 +162,13 @@ class RelationshipStoryGame {
     
     // Register office scene
     this.sceneManager.registerScene('office-scene', new OfficeScene());
+    
+    // Register apartment scene (Day We Met - Act 1)
+    this.sceneManager.registerScene('apartment-scene', new ApartmentScene());
 
     // TODO: Register other scenes as we create them
-    // this.sceneManager.registerScene('first-date', new FirstDateScene());
-    // etc.
+    // this.sceneManager.registerScene('office-building', new OfficeBuildingScene());
+    // this.sceneManager.registerScene('office-floor', new OfficeFloorScene());
   }
 
   private async loadScene(sceneName: string): Promise<void> {
