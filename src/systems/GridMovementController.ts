@@ -126,19 +126,19 @@ export class GridMovementController {
     switch (direction) {
       case 'forward':
         newGridPos.z -= 1;
-        this.targetRotation = 0;
+        this.targetRotation = Math.PI; // Face negative Z
         break;
       case 'backward':
         newGridPos.z += 1;
-        this.targetRotation = Math.PI;
+        this.targetRotation = 0; // Face positive Z
         break;
       case 'left':
         newGridPos.x -= 1;
-        this.targetRotation = Math.PI / 2;
+        this.targetRotation = -Math.PI / 2; // Face left (negative X)
         break;
       case 'right':
         newGridPos.x += 1;
-        this.targetRotation = -Math.PI / 2;
+        this.targetRotation = Math.PI / 2; // Face right (positive X)
         break;
     }
     
