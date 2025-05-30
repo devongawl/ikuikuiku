@@ -373,6 +373,200 @@ export class ApartmentScene extends Scene {
     );
     rug.position.set(6, 0.01, 0);
     this.add(rug);
+
+    // Add paintings to walls
+    this.addPaintings();
+  }
+
+  private addPaintings(): void {
+    // Custom user artwork - kilk.jpeg in bedroom
+    const kilkTexturePath = 'assets/paintings/kilk.jpeg'; // Try without leading slash
+    console.log('Attempting to load painting from:', kilkTexturePath);
+    console.log('Full URL would be:', window.location.origin + '/' + kilkTexturePath);
+    
+    // Test if image is accessible
+    const testImg = new Image();
+    testImg.onload = () => console.log('✅ Image loaded successfully via HTML Image element');
+    testImg.onerror = (e) => console.error('❌ Image failed to load via HTML Image element:', e);
+    testImg.src = kilkTexturePath;
+    
+    this.createPainting({
+      position: { x: -6, y: 2.5, z: -3.7 }, // Moved away from wall to prevent z-fighting
+      size: { width: 1.5, height: 1 },
+      texture: kilkTexturePath,
+      name: 'kilk-artwork'
+    });
+
+    // Living room painting - warm orange
+    this.createPainting({
+      position: { x: 9, y: 2.5, z: 2 },
+      size: { width: 2, height: 1.2 },
+      color: 0xFF8C00, // Dark orange
+      name: 'living-room-painting'
+    });
+
+    // Test painting next to bedroom - solid red color
+    this.createPainting({
+      position: { x: -3, y: 2.5, z: -3.7 },
+      size: { width: 1, height: 1 },
+      color: 0xFF0000, // Bright red for visibility
+      name: 'test-painting'
+    });
+
+    // Kitchen painting - green nature
+    this.createPainting({
+      position: { x: -3, y: 2.2, z: -12 },
+      size: { width: 1.2, height: 0.8 },
+      color: 0x228B22, // Forest green
+      name: 'kitchen-painting'
+    });
+
+    // Hallway painting - purple abstract
+    this.createPainting({
+      position: { x: 12, y: 2.8, z: -6 },
+      size: { width: 1, height: 1.5 },
+      color: 0x9932CC, // Dark orchid
+      name: 'hallway-painting'
+    });
+  }
+
+  private createPainting(config: {
+    position: { x: number, y: number, z: number },
+    size: { width: number, height: number },
+    color?: number,
+    texture?: string,
+    name?: string
+  }): void {
+    const paintingGroup = new THREE.Group();
+
+    // Frame
+    const frameThickness = 0.05;
+    const frameDepth = 0.1;
+    
+    const frame = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        config.size.width + frameThickness * 2, 
+        config.size.height + frameThickness * 2, 
+        frameDepth
+      ),
+      new THREE.MeshLambertMaterial({ color: 0x8B4513 }) // Brown frame
+    );
+    paintingGroup.add(frame);
+
+    // Canvas/artwork
+    let canvasMaterial: THREE.Material;
+    let canvas: THREE.Mesh;
+    
+    if (config.texture) {
+      // Create initial material without texture - bright color for debugging
+      canvasMaterial = new THREE.MeshBasicMaterial({ 
+        color: 0xFF00FF, // Bright magenta - very visible for debugging
+        side: THREE.DoubleSide
+      });
+      
+      // Create canvas mesh with box geometry
+      canvas = new THREE.Mesh(
+        new THREE.BoxGeometry(config.size.width, config.size.height, frameDepth * 0.5),
+        canvasMaterial
+      );
+      canvas.position.z = frameDepth * 0.25;
+      
+      // Store reference to canvas for texture update
+      const canvasMesh = canvas;
+      const materialToUpdate = canvasMaterial as THREE.MeshBasicMaterial;
+      
+      // Load texture asynchronously
+      const textureLoader = new THREE.TextureLoader();
+      textureLoader.load(
+        config.texture,
+        // onLoad callback - texture loaded successfully
+        (texture) => {
+          console.log(`Successfully loaded texture: ${config.texture}`);
+          console.log('Texture dimensions:', texture.image.width, 'x', texture.image.height);
+          
+          // Configure texture
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.generateMipmaps = true;
+          texture.minFilter = THREE.LinearMipmapLinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          texture.wrapS = THREE.ClampToEdgeWrapping;
+          texture.wrapT = THREE.ClampToEdgeWrapping;
+          texture.needsUpdate = true;
+          
+          // Update the existing material with the texture
+          materialToUpdate.map = texture;
+          materialToUpdate.color.setHex(0xFFFFFF); // Reset to white to show texture colors properly
+          materialToUpdate.needsUpdate = true;
+          
+          console.log('Material updated with texture');
+        },
+        // onProgress callback
+        (xhr) => {
+          console.log(`Loading ${config.texture}: ${(xhr.loaded / xhr.total * 100)}% loaded`);
+        },
+        // onError callback
+        (error) => {
+          console.error(`Failed to load texture: ${config.texture}`, error);
+          // Keep gray color on error
+        }
+      );
+    } else {
+      // Use default color with MeshBasicMaterial for consistency
+      canvasMaterial = new THREE.MeshBasicMaterial({ 
+        color: config.color || 0xFFFFFF,
+        side: THREE.FrontSide
+      });
+      
+      canvas = new THREE.Mesh(
+        new THREE.BoxGeometry(config.size.width, config.size.height, frameDepth * 0.5),
+        canvasMaterial
+      );
+      canvas.position.z = frameDepth * 0.25;
+    }
+    
+    paintingGroup.add(canvas);
+
+    // Position and rotate the painting based on wall orientation
+    paintingGroup.position.set(config.position.x, config.position.y, config.position.z);
+    
+    // Determine wall orientation based on position
+    // If z is close to -3.7 or -3.9, it's on the bedroom wall facing positive Z
+    if (Math.abs(config.position.z + 3.7) < 0.5 || Math.abs(config.position.z + 3.9) < 0.5) {
+      // No rotation needed - default orientation faces positive Z
+    }
+    // If z is close to -12, it's on the back wall
+    else if (Math.abs(config.position.z + 12) < 0.5) {
+      paintingGroup.rotation.y = Math.PI; // Face opposite direction
+    }
+    // If x is close to 12, it's on the right wall
+    else if (Math.abs(config.position.x - 12) < 0.5) {
+      paintingGroup.rotation.y = -Math.PI / 2; // Face left
+    }
+    // If x is close to -12, it's on the left wall
+    else if (Math.abs(config.position.x + 12) < 0.5) {
+      paintingGroup.rotation.y = Math.PI / 2; // Face right
+    }
+
+    if (config.name) {
+      paintingGroup.name = config.name;
+    }
+
+    this.add(paintingGroup);
+  }
+
+  // Method to add custom PNG painting
+  public addCustomPainting(
+    position: { x: number, y: number, z: number },
+    size: { width: number, height: number },
+    texturePath: string,
+    name?: string
+  ): void {
+    this.createPainting({
+      position,
+      size,
+      texture: texturePath,
+      name
+    });
   }
 
   private createPlant(): THREE.Group {

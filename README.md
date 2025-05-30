@@ -1,6 +1,65 @@
-# Our Story - Interactive Relationship Journey
+# Iku - Relationship Story Game
 
-A romantic, interactive 3D experience built with Three.js and TypeScript, using Kenney's low-poly assets.
+A narrative-driven 3D game about relationships, built with Three.js and TypeScript.
+
+## Features
+
+- Grid-based character movement with smooth animations
+- Interactive memories and environmental storytelling
+- Scene management system with smooth transitions
+- Beautiful apartment environments
+- **Custom Wall Art System** - Add your own PNG images as paintings!
+- Camera follows character
+- Touch and keyboard controls
+
+## Custom Paintings
+
+You can add your own PNG images as wall art in any scene. Here's how:
+
+### Adding Custom PNG Paintings
+
+1. **Place your PNG files** in the `public/assets/paintings/` directory
+2. **Use the API** to add them to any scene:
+
+```typescript
+// Example: Add a custom painting to the apartment scene
+const apartmentScene = sceneManager.getScene('apartment-scene') as ApartmentScene;
+
+apartmentScene.addCustomPainting(
+  { x: -9, y: 2.5, z: 2 },     // Wall position
+  { width: 1.5, height: 1 },   // Size in world units
+  'assets/paintings/my-art.png', // Path to your PNG
+  'my-custom-painting'          // Optional name
+);
+```
+
+### Default Paintings
+
+The apartment scene includes several default colored paintings:
+- **Bedroom**: Steel blue abstract
+- **Living Room**: Warm orange landscape  
+- **Kitchen**: Forest green nature scene
+- **Hallway**: Purple abstract art
+
+### Painting Specifications
+
+- **Supported Format**: PNG files
+- **Recommended Size**: 512x512px or 1024x1024px for best quality
+- **Aspect Ratio**: Any (will be stretched to fit specified dimensions)
+- **Frame**: Automatic brown wooden frame around all paintings
+
+## Controls
+
+- **WASD** or **Arrow Keys**: Move character
+- **Mouse Wheel**: Zoom camera in/out
+- **Click**: Interact with highlighted objects
+
+## Development
+
+```bash
+npm install
+npm run dev
+```
 
 ## 🎮 Proof of Concept Features
 
