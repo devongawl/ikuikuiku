@@ -391,7 +391,7 @@ export class ApartmentScene extends Scene {
     testImg.src = kilkTexturePath;
     
     this.createPainting({
-      position: { x: -6, y: 2.5, z: -3.7 }, // Moved away from wall to prevent z-fighting
+      position: { x: -6, y: 2.5, z: -3.5 }, // Moved further away from wall to prevent z-fighting
       size: { width: 1.5, height: 1 },
       texture: kilkTexturePath,
       name: 'kilk-artwork'
@@ -407,7 +407,7 @@ export class ApartmentScene extends Scene {
 
     // Test painting next to bedroom - solid red color
     this.createPainting({
-      position: { x: -3, y: 2.5, z: -3.7 },
+      position: { x: -3, y: 2.5, z: -3.5 }, // Also moved away from wall
       size: { width: 1, height: 1 },
       color: 0xFF0000, // Bright red for visibility
       name: 'test-painting'
@@ -449,7 +449,7 @@ export class ApartmentScene extends Scene {
         config.size.height + frameThickness * 2, 
         frameDepth
       ),
-      new THREE.MeshLambertMaterial({ color: 0x8B4513 }) // Brown frame
+      new THREE.MeshBasicMaterial({ color: 0x8B4513 }) // Brown frame
     );
     paintingGroup.add(frame);
 
@@ -461,15 +461,17 @@ export class ApartmentScene extends Scene {
       // Create initial material without texture - bright color for debugging
       canvasMaterial = new THREE.MeshBasicMaterial({ 
         color: 0xFF00FF, // Bright magenta - very visible for debugging
-        side: THREE.DoubleSide
+        side: THREE.FrontSide,
+        depthWrite: true,
+        depthTest: true
       });
       
-      // Create canvas mesh with box geometry
+      // Create canvas mesh with plane geometry for better performance
       canvas = new THREE.Mesh(
-        new THREE.BoxGeometry(config.size.width, config.size.height, frameDepth * 0.5),
+        new THREE.PlaneGeometry(config.size.width, config.size.height),
         canvasMaterial
       );
-      canvas.position.z = frameDepth * 0.25;
+      canvas.position.z = frameDepth / 2 + 0.02; // Position clearly in front of frame with more offset
       
       // Store reference to canvas for texture update
       const canvasMesh = canvas;
@@ -491,12 +493,15 @@ export class ApartmentScene extends Scene {
           texture.magFilter = THREE.LinearFilter;
           texture.wrapS = THREE.ClampToEdgeWrapping;
           texture.wrapT = THREE.ClampToEdgeWrapping;
+          texture.anisotropy = 16; // Max anisotropy for better quality at angles
           texture.needsUpdate = true;
           
           // Update the existing material with the texture
           materialToUpdate.map = texture;
           materialToUpdate.color.setHex(0xFFFFFF); // Reset to white to show texture colors properly
           materialToUpdate.needsUpdate = true;
+          materialToUpdate.transparent = false; // Ensure no transparency issues
+          materialToUpdate.alphaTest = 0; // Disable alpha testing
           
           console.log('Material updated with texture');
         },
@@ -518,10 +523,10 @@ export class ApartmentScene extends Scene {
       });
       
       canvas = new THREE.Mesh(
-        new THREE.BoxGeometry(config.size.width, config.size.height, frameDepth * 0.5),
+        new THREE.PlaneGeometry(config.size.width, config.size.height),
         canvasMaterial
       );
-      canvas.position.z = frameDepth * 0.25;
+      canvas.position.z = frameDepth / 2 + 0.02; // Position clearly in front of frame with more offset
     }
     
     paintingGroup.add(canvas);
