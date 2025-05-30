@@ -110,32 +110,40 @@ export class ApartmentScene extends Scene {
     // Bed
     const bedGroup = new THREE.Group();
     
-    // Bed frame
+    // Bed frame - brown wood
     const bedFrame = new THREE.Mesh(
-      new THREE.BoxGeometry(4, 0.5, 3),
-      new THREE.MeshLambertMaterial({ color: 0x8B4513 })
+      new THREE.BoxGeometry(3, 0.8, 2.5),
+      new THREE.MeshBasicMaterial({ color: 0x8B4513 })
     );
-    bedFrame.position.y = 0.25;
-    bedFrame.castShadow = true;
+    bedFrame.position.y = 0.4;
     bedGroup.add(bedFrame);
     
-    // Mattress
+    // Mattress - off-white
     const mattress = new THREE.Mesh(
-      new THREE.BoxGeometry(3.8, 0.3, 2.8),
-      new THREE.MeshLambertMaterial({ color: 0xFFFAFA })
+      new THREE.BoxGeometry(2.8, 0.4, 2.3),
+      new THREE.MeshBasicMaterial({ color: 0xFFFAFA })
     );
-    mattress.position.y = 0.65;
+    mattress.position.y = 1;
     bedGroup.add(mattress);
     
-    // Pillow
+    // Pillow - light pink
     const pillow = new THREE.Mesh(
-      new THREE.BoxGeometry(1.5, 0.2, 0.8),
-      new THREE.MeshLambertMaterial({ color: 0xFFE4E1 })
+      new THREE.BoxGeometry(1, 0.3, 0.6),
+      new THREE.MeshBasicMaterial({ color: 0xFFE4E1 })
     );
-    pillow.position.set(0, 0.9, -1);
+    pillow.position.set(0, 1.3, -0.8);
     bedGroup.add(pillow);
     
+    // Blanket - light lavender
+    const blanket = new THREE.Mesh(
+      new THREE.BoxGeometry(2.6, 0.1, 2),
+      new THREE.MeshBasicMaterial({ color: 0xE6E6FA })
+    );
+    blanket.position.set(0, 1.15, 0.15);
+    bedGroup.add(blanket);
+    
     bedGroup.position.set(x, 0, z);
+    bedGroup.name = 'bed';
     this.add(bedGroup);
 
     // Nightstand with design sketches
@@ -286,6 +294,16 @@ export class ApartmentScene extends Scene {
   }
 
   private addApartmentMemories(): void {
+    // Bed memory
+    const bed = this.getObjectByName('bed');
+    if (bed) {
+      this.addMemory(
+        bed,
+        "My warm bed... Maybe just five more minutes? No, I need to get to work.",
+        { highlight: false }
+      );
+    }
+
     // Coffee mug memory
     const mug = this.getObjectByName('coffee-mug');
     if (mug) {

@@ -22,6 +22,9 @@ class RelationshipStoryGame {
   private clock: THREE.Clock;
   private cameraDistance: number = 5;
   private cameraHeight: number = 8;
+  private cameraLerpFactor: number = 0.05; // Reduced from 0.1 for smoother movement
+  private cameraLookAtLerpFactor: number = 0.08; // Separate factor for look-at smoothing
+  private currentLookAtTarget: THREE.Vector3 = new THREE.Vector3();
   private debugPanel: HTMLDivElement | null = null;
 
   constructor() {
@@ -135,9 +138,6 @@ class RelationshipStoryGame {
       'kenney_blocky-characters/Skins/Basic/skin_woman.png'
     ).then((character) => {
       this.scene.add(character);
-      
-      // Position character in the bedroom
-      this.characterController.setPosition(-6, 0, 0);
     });
 
     // Show welcome message
@@ -181,6 +181,24 @@ class RelationshipStoryGame {
       
       // Show scene title
       this.showSceneTitle(scene.name, scene.description);
+      
+      // Special handling for apartment scene
+      if (sceneName === 'apartment-scene') {
+        // Set bed position (bedroom is at -6, 0)
+        this.characterController.setBedPosition(-3, 0); // Grid position for bed
+        
+        // Start character in bed
+        this.characterController.setPosition(-6, 0, 0); // World position
+        this.characterController.setInBed(true);
+        
+        // Show morning narration
+        setTimeout(() => {
+          this.dialogueSystem.show(
+            "Another morning... Time to start the day.",
+            3000
+          );
+        }, 1000);
+      }
     }
   }
 
@@ -196,6 +214,9 @@ class RelationshipStoryGame {
     // Simple camera positioning for now
     this.camera.position.copy(targetPosition);
     this.camera.lookAt(characterPos);
+    
+    // Initialize smooth look-at target
+    this.currentLookAtTarget.copy(characterPos);
   }
 
   private smoothCameraFollow(): void {
@@ -210,10 +231,11 @@ class RelationshipStoryGame {
     );
     
     // Smooth lerp for camera position
-    this.camera.position.lerp(targetCameraPos, 0.1);
+    this.camera.position.lerp(targetCameraPos, this.cameraLerpFactor);
     
-    // Look at the character's smooth position
-    this.camera.lookAt(characterPos);
+    // Smooth look-at interpolation
+    this.currentLookAtTarget.lerp(characterPos, this.cameraLookAtLerpFactor);
+    this.camera.lookAt(this.currentLookAtTarget);
   }
 
   private showSceneTitle(name: string, description: string): void {

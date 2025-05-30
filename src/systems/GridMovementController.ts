@@ -34,13 +34,31 @@ export class GridMovementController {
   private keys: Set<string> = new Set();
   private keyPressed: Map<string, boolean> = new Map();
 
+  // Bed state
+  private isInBed: boolean = false;
+  private bedPosition: GridPosition | null = null;
+  private normalYPosition: number = 0;
+  private bedYPosition: number = 1.6; // Height when laying on bed (higher above mattress)
+  private bedTransition: number = 0; // 0 = standing, 1 = laying
+  private bedTransitionSpeed: number = 2; // transitions per second (slower for smoother look)
+
   constructor() {
     this.setupControls();
   }
 
   setCharacter(character: THREE.Group): void {
     this.character = character;
+    this.normalYPosition = character.position.y;
     this.updateCharacterPosition();
+  }
+
+  setBedPosition(x: number, z: number): void {
+    this.bedPosition = { x, z };
+  }
+
+  setInBed(inBed: boolean): void {
+    this.isInBed = inBed;
+    // Transition will be handled in update
   }
 
   private setupControls(): void {
@@ -76,15 +94,72 @@ export class GridMovementController {
   queueMove(direction: Direction): void {
     if (!this.canQueueMove()) return;
     
-    // For now, we'll add all moves. Later we can add validation
-    this.movementQueue.push(direction);
+    // If we're in bed and this is the first move, add a small delay
+    if (this.isInBed && this.movementQueue.length === 0) {
+      // Queue the move but it will wait for the get-up animation
+      this.movementQueue.push(direction);
+      this.setInBed(false); // Start getting up immediately
+    } else {
+      // Normal move queueing
+      this.movementQueue.push(direction);
+    }
   }
 
   update(deltaTime: number): void {
     if (!this.character) return;
 
+    // Handle bed transition animation
+    const targetBedTransition = this.isInBed ? 1 : 0;
+    if (this.bedTransition !== targetBedTransition) {
+      const transitionDelta = this.bedTransitionSpeed * deltaTime;
+      if (this.bedTransition < targetBedTransition) {
+        this.bedTransition = Math.min(1, this.bedTransition + transitionDelta);
+      } else {
+        this.bedTransition = Math.max(0, this.bedTransition - transitionDelta);
+      }
+      
+      // Create smooth arc transition to avoid clipping
+      const smoothTransition = this.smoothStep(this.bedTransition);
+      
+      // Apply X rotation (laying flat) - positive X rotation tips the character backward
+      this.character.rotation.x = (-Math.PI / 2) * smoothTransition;
+      
+      // Reset Z rotation to prevent upside-down issues
+      this.character.rotation.z = 0;
+      
+      // Create arc motion for Y position to prevent clipping
+      let yOffset = 0;
+      
+      if (this.isInBed) {
+        // Getting into bed: simple arc motion
+        const arcProgress = Math.sin(this.bedTransition * Math.PI);
+        const arcHeight = 0.4; // Height of the arc
+        const finalHeight = this.bedYPosition - this.normalYPosition;
+        yOffset = arcProgress * arcHeight + this.bedTransition * finalHeight;
+      } else {
+        // Getting out of bed: reverse arc motion
+        const reverseTransition = 1 - this.bedTransition;
+        const arcProgress = Math.sin(reverseTransition * Math.PI);
+        const arcHeight = 0.4; // Height of the arc
+        const startHeight = this.bedYPosition - this.normalYPosition;
+        yOffset = arcProgress * arcHeight + this.bedTransition * startHeight;
+      }
+      
+      // Ensure Y position never goes below normal position
+      yOffset = Math.max(0, yOffset);
+      this.character.position.y = this.normalYPosition + yOffset;
+    }
+
+    // Add Z offset when in bed to position character away from pillow (outside transition block)
+    if ((this.isInBed || this.bedTransition > 0) && this.bedPosition) {
+      const bedZOffset = 0.4; // Move toward front of bed (positive Z)
+      const currentZOffset = bedZOffset * this.bedTransition;
+      const bedWorldZ = this.bedPosition.z * this.gridSize;
+      this.character.position.z = bedWorldZ + currentZOffset;
+    }
+
     // Process movement queue
-    if (!this.isMoving && this.movementQueue.length > 0) {
+    if (!this.isMoving && this.movementQueue.length > 0 && this.bedTransition === 0) {
       this.startMove(this.movementQueue.shift()!);
     }
 
@@ -94,7 +169,7 @@ export class GridMovementController {
     }
 
     // Smooth rotation
-    if (this.character.rotation.y !== this.targetRotation) {
+    if (this.character.rotation.y !== this.targetRotation && this.bedTransition === 0) {
       const rotationSpeed = 10; // radians per second
       const diff = this.targetRotation - this.character.rotation.y;
       
@@ -165,19 +240,34 @@ export class GridMovementController {
     // Interpolate position
     this.visualPosition.lerpVectors(this.startPosition, this.targetPosition, smoothProgress);
     
-    // Add hop animation
+    // Add hop animation (only if not transitioning from bed)
     const hopProgress = Math.sin(progress * Math.PI);
-    const hopOffset = hopProgress * this.hopHeight;
+    const hopOffset = this.bedTransition === 0 ? hopProgress * this.hopHeight : 0;
     
     // Update character position
     this.character.position.x = this.visualPosition.x;
-    this.character.position.y = hopOffset;
     this.character.position.z = this.visualPosition.z;
+    
+    // Don't override Y position if we're in bed transition
+    if (this.bedTransition === 0) {
+      this.character.position.y = this.normalYPosition + hopOffset;
+    }
     
     // Check if move is complete
     if (progress >= 1) {
       this.isMoving = false;
-      this.character.position.y = 0; // Ensure we land exactly at y=0
+      
+      // Only reset Y position if not in bed transition
+      if (this.bedTransition === 0) {
+        this.character.position.y = this.normalYPosition;
+      }
+      
+      // Check if we moved onto the bed
+      if (this.bedPosition && 
+          this.gridPosition.x === this.bedPosition.x && 
+          this.gridPosition.z === this.bedPosition.z) {
+        this.setInBed(true);
+      }
       
       // Dispatch event for other systems
       window.dispatchEvent(new CustomEvent('gridMoveComplete', {

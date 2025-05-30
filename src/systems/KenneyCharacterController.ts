@@ -132,4 +132,13 @@ export class KenneyCharacterController {
   getQueueLength(): number {
     return this.gridMovement.getQueueLength();
   }
+
+  // Bed interaction methods
+  setBedPosition(x: number, z: number): void {
+    this.gridMovement.setBedPosition(x, z);
+  }
+
+  setInBed(inBed: boolean): void {
+    this.gridMovement.setInBed(inBed);
+  }
 } 
