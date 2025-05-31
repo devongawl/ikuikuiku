@@ -141,10 +141,10 @@ export class ApartmentScene extends Scene {
     
     // Blanket - light lavender
     const blanket = new THREE.Mesh(
-      new THREE.BoxGeometry(2.6, 0.1, 2),
+      new THREE.BoxGeometry(2.6, 0.15, 2),
       new THREE.MeshBasicMaterial({ color: 0xE6E6FA })
     );
-    blanket.position.set(0, 1.15, 0.15);
+    blanket.position.set(0, 1.25, 0.15);
     bedGroup.add(blanket);
     
     bedGroup.position.set(x, 0, z);
@@ -410,12 +410,12 @@ export class ApartmentScene extends Scene {
       name: 'living-room-painting'
     });
 
-    // Test painting next to bedroom - solid red color
+    // June 3rd custom artwork behind the bed
     this.createPainting({
-      position: { x: -3, y: 2.5, z: -3.5 }, // Also moved away from wall
+      position: { x: -3, y: 2.5, z: -3.5 }, // Behind the bed wall
       size: { width: 1, height: 1 },
-      color: 0xFF0000, // Bright red for visibility
-      name: 'test-painting'
+      texture: 'assets/paintings/june3rd.jpg',
+      name: 'june3rd-painting'
     });
 
     // Kitchen painting - green nature
@@ -638,52 +638,86 @@ export class ApartmentScene extends Scene {
       return;
     }
 
-    console.log('🔧 Starting collision registration for ApartmentScene');
+    console.log('🔧 Registering improved collision for apartment walls');
 
-    // First, let's add some simple test colliders to make sure the system works
-    console.log('Adding test wall at (1, 0)');
-    this.collisionManager!.addStaticCollider({
-      type: 'static',
-      gridPositions: [{x: 1, z: 0}],
-      name: 'test-wall-1'
-    });
+    // Simpler but more precise collision registration
+    const registerWallCollision = (name: string, centerX: number, centerZ: number, width: number, depth: number) => {
+      const gridSize = 2; // Grid size from GridMovementController
+      const positions: {x: number, z: number}[] = [];
+      
+      // For thin walls, be more selective about which grid positions to block
+      // For thick objects, use broader coverage
+      let threshold = 0.5; // Default threshold
+      
+      if (width < 1 || depth < 1) {
+        // Thin walls - lower threshold to ensure they still block
+        threshold = 0.1;
+      }
+      
+      // Calculate grid bounds with a smaller buffer
+      const minX = Math.floor((centerX - width/2 - gridSize/4) / gridSize);
+      const maxX = Math.floor((centerX + width/2 + gridSize/4) / gridSize);
+      const minZ = Math.floor((centerZ - depth/2 - gridSize/4) / gridSize);
+      const maxZ = Math.floor((centerZ + depth/2 + gridSize/4) / gridSize);
+      
+      for (let x = minX; x <= maxX; x++) {
+        for (let z = minZ; z <= maxZ; z++) {
+          // Calculate distance from grid center to wall center
+          const gridCenterX = x * gridSize;
+          const gridCenterZ = z * gridSize;
+          const distanceX = Math.abs(gridCenterX - centerX);
+          const distanceZ = Math.abs(gridCenterZ - centerZ);
+          
+          // Check if grid position overlaps with wall (with threshold)
+          if (distanceX < (width/2 + gridSize/2 * threshold) && 
+              distanceZ < (depth/2 + gridSize/2 * threshold)) {
+            positions.push({x, z});
+          }
+        }
+      }
+      
+      console.log(`📋 ${name}: positions`, positions);
+      if (positions.length > 0) {
+        this.collisionManager!.addStaticCollider({
+          type: 'static',
+          gridPositions: positions,
+          name
+        });
+      }
+    };
 
-    console.log('Adding test wall at (0, 1)');
-    this.collisionManager!.addStaticCollider({
-      type: 'static',
-      gridPositions: [{x: 0, z: 1}],
-      name: 'test-wall-2'
-    });
-
-    // Register a few key walls manually first
-    // Left wall spans from z=-3 to z=2, x=-6
-    console.log('🧱 Registering left wall at x=-6');
-    for (let z = -3; z <= 2; z++) {
-      console.log(`  Adding left wall collider at (-6, ${z})`);
-      this.collisionManager!.addStaticCollider({
-        type: 'static',
-        gridPositions: [{x: -6, z}],
-        name: `left-wall-${z}`
-      });
-    }
-
-    // Add a specific wall right where the character should hit it
-    console.log('🛑 Adding blocking wall at (-7, 0)');
-    this.collisionManager!.addStaticCollider({
-      type: 'static',
-      gridPositions: [{x: -7, z: 0}],
-      name: 'blocking-wall'
-    });
-
-    console.log('✅ Collision registration complete');
-    const occupiedPositions = this.collisionManager!.getOccupiedPositions();
-    console.log('📋 All occupied positions:', occupiedPositions);
+    // Register all boundary walls
+    registerWallCollision('back-wall', 0, -12, 24, 0.3);
+    registerWallCollision('front-wall-left', -6, 8, 12, 0.3);
+    registerWallCollision('front-wall-right', 9, 8, 6, 0.3);
+    registerWallCollision('left-wall', -12, -2, 0.3, 20);
+    registerWallCollision('right-wall', 12, -2, 0.3, 20);
     
-    // Check specific positions
-    console.log('🔍 Testing specific positions:');
-    console.log('  (-6, 0) walkable:', this.collisionManager!.isWalkable(-6, 0));
-    console.log('  (-7, 0) walkable:', this.collisionManager!.isWalkable(-7, 0));
-    console.log('  (1, 0) walkable:', this.collisionManager!.isWalkable(1, 0));
+    // Register interior walls
+    registerWallCollision('bedroom-bathroom-wall', -6, -4, 8, 0.3);
+    registerWallCollision('kitchen-living-separator', 3, -4, 0.3, 8);
+
+    // Register major furniture with appropriate sizes
+    // Bed interaction is handled separately by GridMovementController, not collision system
+    
+    // Kitchen counter
+    registerWallCollision('kitchen-counter', 0, -8, 6, 2);
+
+    // Kitchen table  
+    registerWallCollision('kitchen-table', 0, -4, 3, 2);
+
+    // Couch in living room
+    registerWallCollision('couch', 6, 0, 4, 2);
+
+    // Coffee table
+    registerWallCollision('coffee-table', 6, 2, 2, 1);
+
+    console.log('✅ All apartment walls and furniture registered with improved collision');
+    
+    // Debug: show all occupied positions
+    const occupiedPositions = this.collisionManager!.getOccupiedPositions();
+    console.log('📋 Total occupied grid positions:', occupiedPositions.length);
+    console.log('📍 Occupied positions:', occupiedPositions);
   }
 
   update(deltaTime: number): void {
