@@ -392,7 +392,7 @@ export class ApartmentScene extends Scene {
     
     this.createPainting({
       position: { x: -6, y: 2.5, z: -3.5 }, // Moved further away from wall to prevent z-fighting
-      size: { width: 1.5, height: 1 },
+      size: { width: 2.25, height: 1.5 }, // 1.5x bigger: 1.5*1.5=2.25, 1*1.5=1.5
       texture: kilkTexturePath,
       name: 'kilk-artwork'
     });
@@ -427,6 +427,34 @@ export class ApartmentScene extends Scene {
       size: { width: 1, height: 1.5 },
       color: 0x9932CC, // Dark orchid
       name: 'hallway-painting'
+    });
+
+    // Left wall paintings - malle series in a row
+    const malleY = 2.5; // Same height as other paintings
+    const malleSize = { width: 1.2, height: 1.2 }; // Square format
+    
+    // Malle 1 painting
+    this.createPainting({
+      position: { x: -11.8, y: malleY, z: -1.5 }, // Closer to left wall for proper rotation
+      size: malleSize,
+      texture: 'assets/paintings/' + encodeURIComponent('malle 1.jpeg'),
+      name: 'malle-1-painting'
+    });
+
+    // Malle 2 painting  
+    this.createPainting({
+      position: { x: -11.8, y: malleY, z: 0 }, // Closer to left wall for proper rotation
+      size: malleSize,
+      texture: 'assets/paintings/malle2.jpeg',
+      name: 'malle-2-painting'
+    });
+
+    // Malle 3 painting
+    this.createPainting({
+      position: { x: -11.8, y: malleY, z: 1.5 }, // Closer to left wall for proper rotation
+      size: malleSize,
+      texture: 'assets/paintings/malle3.jpeg',
+      name: 'malle-3-painting'
     });
   }
 
@@ -547,9 +575,9 @@ export class ApartmentScene extends Scene {
     else if (Math.abs(config.position.x - 12) < 0.5) {
       paintingGroup.rotation.y = -Math.PI / 2; // Face left
     }
-    // If x is close to -12, it's on the left wall
-    else if (Math.abs(config.position.x + 12) < 0.5) {
-      paintingGroup.rotation.y = Math.PI / 2; // Face right
+    // If x is close to -12, it's on the left wall (increased tolerance)
+    else if (Math.abs(config.position.x + 12) < 1.0) {
+      paintingGroup.rotation.y = Math.PI / 2; // Face right (into the room)
     }
 
     if (config.name) {
