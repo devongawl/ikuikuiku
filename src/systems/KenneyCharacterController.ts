@@ -174,7 +174,7 @@ export class KenneyCharacterController {
       });
 
       // Scale the character appropriately
-      fbxModel.scale.setScalar(0.002); // Reduced from 0.01 - much smaller for scene proportion
+      fbxModel.scale.setScalar(0.0027); // Reduced from 0.004 - 1.5x smaller for better proportion
       
       // Apply custom texture if provided
       if (texturePath) {
