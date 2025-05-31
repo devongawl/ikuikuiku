@@ -139,9 +139,10 @@ class RelationshipStoryGame {
     // Register all scenes
     this.registerScenes();
 
-    // Load character with woman skin
-    this.characterController.loadCharacter(
-      'kenney_blocky-characters/Skins/Basic/skin_woman.png'
+    // Load character with FBX Animated Woman model (blonde/light skin)
+    this.characterController.loadFBXCharacter(
+      'models/Animated Woman/Animated Woman.fbx',
+      'models/Animated Woman/LightSkin.png'
     ).then((character) => {
       this.scene.add(character);
     });

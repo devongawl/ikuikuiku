@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { AssetLoader } from './AssetLoader';
 import { GridMovementController } from './GridMovementController';
 import { CollisionManager } from './CollisionManager';
@@ -146,5 +147,90 @@ export class KenneyCharacterController {
 
   setInBed(inBed: boolean): void {
     this.gridMovement.setInBed(inBed);
+  }
+
+  async loadFBXCharacter(modelPath: string, texturePath?: string): Promise<THREE.Group> {
+    try {
+      console.log('Loading FBX character from:', modelPath);
+      
+      const fbxLoader = new FBXLoader();
+      
+      // Load the FBX model
+      const fbxModel = await new Promise<THREE.Group>((resolve, reject) => {
+        fbxLoader.load(
+          modelPath,
+          (object) => {
+            console.log('FBX model loaded successfully');
+            resolve(object);
+          },
+          (progress) => {
+            console.log('FBX loading progress:', (progress.loaded / progress.total * 100) + '%');
+          },
+          (error) => {
+            console.error('FBX loading error:', error);
+            reject(error);
+          }
+        );
+      });
+
+      // Scale the character appropriately
+      fbxModel.scale.setScalar(0.002); // Reduced from 0.01 - much smaller for scene proportion
+      
+      // Apply custom texture if provided
+      if (texturePath) {
+        const textureLoader = new THREE.TextureLoader();
+        const texture = await new Promise<THREE.Texture>((resolve, reject) => {
+          textureLoader.load(
+            texturePath,
+            (tex) => {
+              console.log('Texture loaded successfully:', texturePath);
+              resolve(tex);
+            },
+            undefined,
+            (error) => {
+              console.error('Texture loading error:', error);
+              reject(error);
+            }
+          );
+        });
+
+        // Apply texture to all meshes
+        fbxModel.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.material = new THREE.MeshLambertMaterial({
+              map: texture,
+              color: 0xffffff
+            });
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+      }
+
+      // Handle animations if present
+      if (fbxModel.animations && fbxModel.animations.length > 0) {
+        console.log('Found animations:', fbxModel.animations.length);
+        this.mixer = new THREE.AnimationMixer(fbxModel);
+        
+        // You can add specific animation handling here
+        // For example, idle animation:
+        // const idleAction = this.mixer.clipAction(fbxModel.animations[0]);
+        // idleAction.play();
+      }
+
+      // Position character above ground
+      fbxModel.position.y = 0;
+      
+      this.character = fbxModel;
+      
+      // Set character in grid movement controller
+      this.gridMovement.setCharacter(this.character);
+      
+      return this.character;
+    } catch (error) {
+      console.error('Failed to load FBX character:', error);
+      // Fallback to regular character loading
+      return this.loadCharacter();
+    }
   }
 } 
