@@ -6,6 +6,7 @@ import type { Memory } from '../types';
 export class ApartmentScene extends Scene {
   private assetLoader: AssetLoader;
   private exitDoor: THREE.Mesh | null = null;
+  private walls: THREE.Mesh[] = [];
 
   constructor() {
     super('apartment-scene', 'Tuesday Morning - Her Apartment');
@@ -79,30 +80,34 @@ export class ApartmentScene extends Scene {
     const wallThickness = 0.3;
 
     // Apartment boundary walls
-    const walls = [
+    const wallData = [
       // Back wall
-      { x: 0, z: -12, width: 24, depth: wallThickness },
+      { x: 0, z: -12, width: 24, depth: wallThickness, name: 'back-wall' },
       // Front wall (with gap for exit)
-      { x: -6, z: 8, width: 12, depth: wallThickness },
-      { x: 9, z: 8, width: 6, depth: wallThickness },
+      { x: -6, z: 8, width: 12, depth: wallThickness, name: 'front-wall-left' },
+      { x: 9, z: 8, width: 6, depth: wallThickness, name: 'front-wall-right' },
       // Side walls
-      { x: -12, z: -2, width: wallThickness, depth: 20 },
-      { x: 12, z: -2, width: wallThickness, depth: 20 },
+      { x: -12, z: -2, width: wallThickness, depth: 20, name: 'left-wall' },
+      { x: 12, z: -2, width: wallThickness, depth: 20, name: 'right-wall' },
       
       // Interior walls
       // Bedroom-bathroom wall
-      { x: -6, z: -4, width: 8, depth: wallThickness },
+      { x: -6, z: -4, width: 8, depth: wallThickness, name: 'bedroom-bathroom-wall' },
       // Kitchen-living room separator
-      { x: 3, z: -4, width: wallThickness, depth: 8 },
+      { x: 3, z: -4, width: wallThickness, depth: 8, name: 'kitchen-living-separator' },
     ];
 
-    walls.forEach(wall => {
+    wallData.forEach(wall => {
       const geometry = new THREE.BoxGeometry(wall.width, wallHeight, wall.depth);
       const mesh = new THREE.Mesh(geometry, wallMaterial);
       mesh.position.set(wall.x, wallHeight / 2, wall.z);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+      mesh.name = wall.name;
       this.add(mesh);
+      
+      // Track walls for collision
+      this.walls.push(mesh);
     });
   }
 
@@ -625,6 +630,60 @@ export class ApartmentScene extends Scene {
     plant.add(leaves);
     
     return plant;
+  }
+
+  protected registerColliders(): void {
+    if (!this.collisionManager) {
+      console.warn('No collision manager set for ApartmentScene');
+      return;
+    }
+
+    console.log('🔧 Starting collision registration for ApartmentScene');
+
+    // First, let's add some simple test colliders to make sure the system works
+    console.log('Adding test wall at (1, 0)');
+    this.collisionManager!.addStaticCollider({
+      type: 'static',
+      gridPositions: [{x: 1, z: 0}],
+      name: 'test-wall-1'
+    });
+
+    console.log('Adding test wall at (0, 1)');
+    this.collisionManager!.addStaticCollider({
+      type: 'static',
+      gridPositions: [{x: 0, z: 1}],
+      name: 'test-wall-2'
+    });
+
+    // Register a few key walls manually first
+    // Left wall spans from z=-3 to z=2, x=-6
+    console.log('🧱 Registering left wall at x=-6');
+    for (let z = -3; z <= 2; z++) {
+      console.log(`  Adding left wall collider at (-6, ${z})`);
+      this.collisionManager!.addStaticCollider({
+        type: 'static',
+        gridPositions: [{x: -6, z}],
+        name: `left-wall-${z}`
+      });
+    }
+
+    // Add a specific wall right where the character should hit it
+    console.log('🛑 Adding blocking wall at (-7, 0)');
+    this.collisionManager!.addStaticCollider({
+      type: 'static',
+      gridPositions: [{x: -7, z: 0}],
+      name: 'blocking-wall'
+    });
+
+    console.log('✅ Collision registration complete');
+    const occupiedPositions = this.collisionManager!.getOccupiedPositions();
+    console.log('📋 All occupied positions:', occupiedPositions);
+    
+    // Check specific positions
+    console.log('🔍 Testing specific positions:');
+    console.log('  (-6, 0) walkable:', this.collisionManager!.isWalkable(-6, 0));
+    console.log('  (-7, 0) walkable:', this.collisionManager!.isWalkable(-7, 0));
+    console.log('  (1, 0) walkable:', this.collisionManager!.isWalkable(1, 0));
   }
 
   update(deltaTime: number): void {

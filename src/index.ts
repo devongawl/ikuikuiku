@@ -4,6 +4,7 @@ import { DialogueSystem } from './systems/DialogueSystem';
 import { InteractionSystem } from './systems/InteractionSystem';
 import { AssetLoader } from './systems/AssetLoader';
 import { KenneyCharacterController } from './systems/KenneyCharacterController';
+import { CollisionManager } from './systems/CollisionManager';
 import { TestScene } from './scenes/TestScene';
 import { OfficeScene } from './scenes/OfficeScene';
 import { ApartmentScene } from './scenes/ApartmentScene';
@@ -19,6 +20,7 @@ class RelationshipStoryGame {
   private interactionSystem: InteractionSystem;
   private assetLoader: AssetLoader;
   private characterController: KenneyCharacterController;
+  private collisionManager: CollisionManager;
   private clock: THREE.Clock;
   private cameraDistance: number = 5;
   private cameraHeight: number = 8;
@@ -45,7 +47,11 @@ class RelationshipStoryGame {
     this.dialogueSystem = new DialogueSystem();
     this.interactionSystem = new InteractionSystem(this.camera, this.dialogueSystem);
     this.characterController = new KenneyCharacterController(this.assetLoader);
+    this.collisionManager = new CollisionManager();
     this.clock = new THREE.Clock();
+
+    // Connect collision manager to character controller
+    this.characterController.setCollisionManager(this.collisionManager);
 
     // Add scene manager container to main scene
     this.scene.add(this.sceneManager.sceneContainer);
@@ -174,6 +180,9 @@ class RelationshipStoryGame {
   private async loadScene(sceneName: string): Promise<void> {
     const scene = await this.sceneManager.loadScene(sceneName);
     if (scene) {
+      // Set collision manager for the scene BEFORE doing anything else
+      scene.setCollisionManager(this.collisionManager);
+      
       this.interactionSystem.setScene(scene);
       
       // Adjust camera for the scene if needed

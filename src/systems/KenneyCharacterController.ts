@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { AssetLoader } from './AssetLoader';
 import { GridMovementController } from './GridMovementController';
+import { CollisionManager } from './CollisionManager';
 
 export class KenneyCharacterController {
   private character: THREE.Group | null = null;
@@ -11,6 +12,10 @@ export class KenneyCharacterController {
   constructor(assetLoader: AssetLoader) {
     this.assetLoader = assetLoader;
     this.gridMovement = new GridMovementController();
+  }
+
+  setCollisionManager(collisionManager: CollisionManager): void {
+    this.gridMovement.setCollisionManager(collisionManager);
   }
 
   async loadCharacter(skinTexturePath?: string): Promise<THREE.Group> {
@@ -117,6 +122,7 @@ export class KenneyCharacterController {
     // Assuming grid size of 2 units
     const gridX = Math.round(x / 2);
     const gridZ = Math.round(z / 2);
+    console.log(`Setting position: World (${x}, ${y}, ${z}) -> Grid (${gridX}, ${gridZ})`);
     this.gridMovement.setGridPosition(gridX, gridZ);
   }
 
@@ -126,7 +132,7 @@ export class KenneyCharacterController {
   }
 
   isMoving(): boolean {
-    return this.gridMovement.isCurrentlyMoving();
+    return this.gridMovement.isMoving();
   }
 
   getQueueLength(): number {

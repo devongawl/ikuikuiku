@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CollisionManager } from './CollisionManager';
 
 export type Direction = 'forward' | 'backward' | 'left' | 'right';
 
@@ -16,7 +17,7 @@ export class GridMovementController {
   // Movement state
   private movementQueue: Direction[] = [];
   private maxQueueSize: number = 3;
-  private isMoving: boolean = false;
+  private _isMoving: boolean = false;
   
   // Animation settings
   private moveDuration: number = 0.25; // seconds
@@ -24,6 +25,14 @@ export class GridMovementController {
   private startPosition: THREE.Vector3 = new THREE.Vector3();
   private targetPosition: THREE.Vector3 = new THREE.Vector3();
   private hopHeight: number = 0.3;
+  
+  // Bump animation for blocked movement
+  private _isBumping: boolean = false;
+  private bumpDuration: number = 0.2; // shorter than normal movement
+  private bumpTimer: number = 0;
+  private bumpDirection: THREE.Vector3 = new THREE.Vector3();
+  private bumpStartPosition: THREE.Vector3 = new THREE.Vector3();
+  private bumpDistance: number = 0.3; // how far to lunge before bouncing back
   
   // Character reference
   private character: THREE.Group | null = null;
@@ -41,6 +50,9 @@ export class GridMovementController {
   private bedYPosition: number = 1.6; // Height when laying on bed (higher above mattress)
   private bedTransition: number = 0; // 0 = standing, 1 = laying
   private bedTransitionSpeed: number = 2; // transitions per second (slower for smoother look)
+
+  // Collision manager
+  private collisionManager: CollisionManager | null = null;
 
   constructor() {
     this.setupControls();
@@ -61,6 +73,12 @@ export class GridMovementController {
     // Transition will be handled in update
   }
 
+  setCollisionManager(collisionManager: CollisionManager): void {
+    this.collisionManager = collisionManager;
+    console.log('CollisionManager set in GridMovementController');
+    console.log('Current grid position:', this.gridPosition);
+  }
+
   private setupControls(): void {
     window.addEventListener('keydown', (e) => {
       const key = e.key.toLowerCase();
@@ -68,6 +86,11 @@ export class GridMovementController {
       // Prevent key repeat
       if (this.keyPressed.get(key)) return;
       this.keyPressed.set(key, true);
+      
+      // Debug: check if collision manager is set
+      if (!this.collisionManager) {
+        console.warn('CollisionManager not set! Movement will not be blocked.');
+      }
       
       // Queue moves based on key press
       if ((key === 'w' || key === 'arrowup') && this.canQueueMove()) {
@@ -93,6 +116,9 @@ export class GridMovementController {
 
   queueMove(direction: Direction): void {
     if (!this.canQueueMove()) return;
+    
+    // Don't queue moves while bumping
+    if (this._isBumping) return;
     
     // If we're in bed and this is the first move, add a small delay
     if (this.isInBed && this.movementQueue.length === 0) {
@@ -158,13 +184,18 @@ export class GridMovementController {
       this.character.position.z = bedWorldZ + currentZOffset;
     }
 
-    // Process movement queue
-    if (!this.isMoving && this.movementQueue.length > 0 && this.bedTransition === 0) {
+    // Handle bump animation
+    if (this._isBumping) {
+      this.animateBump(deltaTime);
+    }
+
+    // Process movement queue (only if not moving and not bumping and not in bed transition)
+    if (!this._isMoving && !this._isBumping && this.movementQueue.length > 0 && this.bedTransition === 0) {
       this.startMove(this.movementQueue.shift()!);
     }
 
     // Animate current move
-    if (this.isMoving) {
+    if (this._isMoving) {
       this.animateMove(deltaTime);
     }
 
@@ -189,8 +220,6 @@ export class GridMovementController {
   }
 
   private startMove(direction: Direction): void {
-    this.isMoving = true;
-    this.moveTimer = 0;
     this.currentDirection = direction;
     
     // Store start position
@@ -217,6 +246,30 @@ export class GridMovementController {
         break;
     }
     
+    // Check collision before moving
+    if (this.collisionManager && !this.collisionManager.canMoveTo(this.gridPosition, newGridPos)) {
+      console.log(`Movement blocked from (${this.gridPosition.x}, ${this.gridPosition.z}) to (${newGridPos.x}, ${newGridPos.z})`);
+      
+      // Check if it's an interactable
+      const interactable = this.collisionManager.getInteractableAt(newGridPos.x, newGridPos.z);
+      if (interactable) {
+        console.log('Found interactable:', interactable.interactionType);
+        // Handle interaction (will implement later)
+      }
+      
+      // Start bump animation toward blocked direction
+      this.startBumpAnimation(direction);
+      
+      return; // Block the movement
+    }
+    
+    // Log successful movement
+    console.log(`Moving from (${this.gridPosition.x}, ${this.gridPosition.z}) to (${newGridPos.x}, ${newGridPos.z})`);
+    
+    // Movement is allowed, proceed as normal
+    this._isMoving = true;
+    this.moveTimer = 0;
+    
     // Update grid position immediately (for game logic)
     this.gridPosition = newGridPos;
     
@@ -226,6 +279,92 @@ export class GridMovementController {
       0,
       this.gridPosition.z * this.gridSize
     );
+  }
+
+  private startBumpAnimation(direction: Direction): void {
+    if (this._isBumping) return; // Don't interrupt existing bump
+    
+    this._isBumping = true;
+    this.bumpTimer = 0;
+    this.currentDirection = direction;
+    
+    // Store current position as bump start
+    this.bumpStartPosition.copy(this.visualPosition);
+    
+    // Calculate bump direction vector
+    this.bumpDirection.set(0, 0, 0);
+    switch (direction) {
+      case 'forward':
+        this.bumpDirection.z = -this.bumpDistance;
+        this.targetRotation = Math.PI;
+        break;
+      case 'backward':
+        this.bumpDirection.z = this.bumpDistance;
+        this.targetRotation = 0;
+        break;
+      case 'left':
+        this.bumpDirection.x = -this.bumpDistance;
+        this.targetRotation = -Math.PI / 2;
+        break;
+      case 'right':
+        this.bumpDirection.x = this.bumpDistance;
+        this.targetRotation = Math.PI / 2;
+        break;
+    }
+    
+    console.log(`Starting bump animation toward ${direction}`);
+  }
+
+  private animateBump(deltaTime: number): void {
+    if (!this.character) return;
+    
+    this.bumpTimer += deltaTime;
+    const progress = Math.min(1, this.bumpTimer / this.bumpDuration);
+    
+    // Two-phase animation: lunge forward (0-0.5), bounce back (0.5-1.0)
+    let bumpOffset: THREE.Vector3;
+    
+    if (progress <= 0.5) {
+      // First half: lunge toward blocked direction
+      const lungeProgress = progress * 2; // 0 to 1
+      const easedProgress = this.smoothStep(lungeProgress);
+      bumpOffset = this.bumpDirection.clone().multiplyScalar(easedProgress);
+    } else {
+      // Second half: bounce back to original position
+      const bounceProgress = (progress - 0.5) * 2; // 0 to 1
+      const easedProgress = this.smoothStep(bounceProgress);
+      bumpOffset = this.bumpDirection.clone().multiplyScalar(1 - easedProgress);
+    }
+    
+    // Apply bump offset to character position
+    const bumpPosition = this.bumpStartPosition.clone().add(bumpOffset);
+    
+    // Don't override Y position if we're in bed transition
+    if (this.bedTransition === 0) {
+      this.character.position.x = bumpPosition.x;
+      this.character.position.z = bumpPosition.z;
+      this.character.position.y = this.normalYPosition;
+    } else {
+      this.character.position.x = bumpPosition.x;
+      this.character.position.z = bumpPosition.z;
+      // Y position handled by bed transition
+    }
+    
+    // Update visual position to match (so camera follows)
+    this.visualPosition.copy(bumpPosition);
+    
+    // Check if bump is complete
+    if (progress >= 1) {
+      this._isBumping = false;
+      this.bumpTimer = 0;
+      
+      // Ensure character is back at original position
+      this.character.position.x = this.bumpStartPosition.x;
+      this.character.position.z = this.bumpStartPosition.z;
+      this.visualPosition.copy(this.bumpStartPosition);
+      
+      console.log('Bump animation complete');
+    }
   }
 
   private animateMove(deltaTime: number): void {
@@ -255,7 +394,7 @@ export class GridMovementController {
     
     // Check if move is complete
     if (progress >= 1) {
-      this.isMoving = false;
+      this._isMoving = false;
       
       // Only reset Y position if not in bed transition
       if (this.bedTransition === 0) {
@@ -314,17 +453,21 @@ export class GridMovementController {
     return this.visualPosition.clone();
   }
 
-  isCurrentlyMoving(): boolean {
-    return this.isMoving;
-  }
-
-  setGridPosition(x: number, z: number): void {
-    this.gridPosition = { x, z };
-    this.updateCharacterPosition();
-  }
-
-  // For debugging
   getQueueLength(): number {
     return this.movementQueue.length;
   }
-} 
+
+  isMoving(): boolean {
+    return this._isMoving;
+  }
+
+  isBumping(): boolean {
+    return this._isBumping;
+  }
+
+  setGridPosition(x: number, z: number): void {
+    console.log(`Setting grid position to (${x}, ${z})`);
+    this.gridPosition = { x, z };
+    this.updateCharacterPosition();
+  }
+}

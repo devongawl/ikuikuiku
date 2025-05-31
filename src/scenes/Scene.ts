@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Memory } from '../types';
+import { CollisionManager } from '../systems/CollisionManager';
 
 export class Scene extends THREE.Group {
   public name: string;
@@ -7,6 +8,7 @@ export class Scene extends THREE.Group {
   protected interactables: THREE.Object3D[];
   protected memories: Memory[];
   protected loaded: boolean;
+  protected collisionManager: CollisionManager | null = null;
 
   constructor(name: string, description: string) {
     super();
@@ -15,6 +17,17 @@ export class Scene extends THREE.Group {
     this.interactables = [];
     this.memories = [];
     this.loaded = false;
+  }
+
+  // Set the collision manager for this scene
+  setCollisionManager(collisionManager: CollisionManager): void {
+    this.collisionManager = collisionManager;
+    
+    // Register colliders immediately when collision manager is set
+    // (only if scene is already loaded)
+    if (this.loaded) {
+      this.registerColliders();
+    }
   }
 
   // Called when scene is about to be shown
@@ -30,11 +43,21 @@ export class Scene extends THREE.Group {
     // Override in child classes to load specific assets
     await this.loadAssets();
     
+    // Register colliders after assets are loaded (only if collision manager is available)
+    if (this.collisionManager) {
+      this.registerColliders();
+    }
+    
     this.loaded = true;
   }
 
   // Called when scene is being removed
   unload(): void {
+    // Clear collision data
+    if (this.collisionManager) {
+      this.collisionManager.clear();
+    }
+    
     // Clean up resources
     this.traverse(child => {
       if ('geometry' in child && child.geometry) {
@@ -88,6 +111,33 @@ export class Scene extends THREE.Group {
   // Override this in child classes
   protected async loadAssets(): Promise<void> {
     // Load scene-specific models, textures, etc.
+  }
+
+  // Override this in child classes to register scene-specific colliders
+  protected registerColliders(): void {
+    // Child classes should override this to add their colliders
+  }
+
+  // Helper method to calculate grid positions from world bounds
+  protected calculateGridPositions(object: THREE.Object3D, gridSize: number = 2): { x: number, z: number }[] {
+    const positions: { x: number, z: number }[] = [];
+    
+    // Get bounding box
+    const box = new THREE.Box3().setFromObject(object);
+    
+    // Calculate grid cells covered by this object
+    const minX = Math.floor(box.min.x / gridSize);
+    const maxX = Math.floor(box.max.x / gridSize);
+    const minZ = Math.floor(box.min.z / gridSize);
+    const maxZ = Math.floor(box.max.z / gridSize);
+    
+    for (let x = minX; x <= maxX; x++) {
+      for (let z = minZ; z <= maxZ; z++) {
+        positions.push({ x, z });
+      }
+    }
+    
+    return positions;
   }
 
   // Add an interactive memory point
