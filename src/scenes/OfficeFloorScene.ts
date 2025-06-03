@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Scene } from './Scene';
+import { AssetLoader } from '../systems/AssetLoader';
 import type { Memory } from '../types';
 
 export class OfficeFloorScene extends Scene {
@@ -8,9 +9,13 @@ export class OfficeFloorScene extends Scene {
   private newDeveloper: THREE.Group | null = null;
   private manager: THREE.Group | null = null;
   private storyPhase: 'arrival' | 'working' | 'developer-arrives' | 'desk-selection' | 'meeting' = 'arrival';
+  private assetLoader: AssetLoader;
+  private npcs: THREE.Group[] = []; // Array to hold all NPCs
+  private npcMovementData: NPCMovementData[] = []; // Track movement state for each NPC
 
   constructor() {
     super('office-floor', 'The Office - September 15th');
+    this.assetLoader = new AssetLoader();
     this.setupGridMovementListener();
   }
 
@@ -24,6 +29,9 @@ export class OfficeFloorScene extends Scene {
       
       // Add office details and furniture
       this.addOfficeDetails();
+      
+      // Load and position NPCs
+      await this.loadOfficeNPCs();
       
       // Start the story sequence
       this.startStorySequence();
@@ -516,6 +524,24 @@ export class OfficeFloorScene extends Scene {
         { highlight: true }
       );
     }
+
+    // Add memories for NPCs
+    this.npcs.forEach((npc, index) => {
+      const npcMemories = [
+        "Dave from Development. Always buried in his code, but he gave me great technical advice.",
+        "Sarah, our Project Manager. She had a way of keeping everyone organized and motivated.", 
+        "Mike from HR. A friendly guy who always made sure everyone felt welcome.",
+        "Emma, the UI Designer. We often discussed design principles during coffee breaks."
+      ];
+
+      if (npc && index < npcMemories.length) {
+        this.addMemory(
+          npc,
+          npcMemories[index],
+          { highlight: true }
+        );
+      }
+    });
   }
 
   private startStorySequence(): void {
@@ -649,6 +675,32 @@ export class OfficeFloorScene extends Scene {
   unload(): void {
     super.unload();
     
+    // Clean up NPCs
+    this.npcs.forEach(npc => {
+      // Dispose of textures and materials
+      npc.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          if (child.material instanceof THREE.Material) {
+            // Check if material has a map property (like MeshLambertMaterial)
+            if ('map' in child.material && child.material.map) {
+              (child.material.map as THREE.Texture).dispose();
+            }
+            child.material.dispose();
+          }
+          if (child.geometry) {
+            child.geometry.dispose();
+          }
+        }
+      });
+      
+      // Remove from scene
+      this.remove(npc);
+    });
+    
+    // Clear NPCs array and movement data
+    this.npcs = [];
+    this.npcMovementData = [];
+    
     if ((this as any).gridMovementListener) {
       window.removeEventListener('gridMoveComplete', (this as any).gridMovementListener);
       (this as any).gridMovementListener = null;
@@ -658,7 +710,236 @@ export class OfficeFloorScene extends Scene {
   update(deltaTime: number): void {
     super.update(deltaTime);
     
+    // Update NPC movements
+    this.updateNPCMovements(deltaTime);
+    
     // Update story elements based on current phase
     // Could add NPC animations here in the future
   }
+
+  private updateNPCMovements(deltaTime: number): void {
+    this.npcMovementData.forEach(data => {
+      if (data.waypoints.length === 0) return;
+      
+      const currentWaypoint = data.waypoints[data.currentWaypointIndex];
+      const npcPosition = data.npc.position;
+      
+      if (!data.isMoving) {
+        // NPC is waiting at a waypoint
+        data.currentWaitTime += deltaTime;
+        
+        if (data.currentWaitTime >= data.waitTime) {
+          // Start moving to next waypoint
+          data.isMoving = true;
+          data.currentWaitTime = 0;
+          
+          // Calculate rotation to face the target waypoint
+          const direction = new THREE.Vector3()
+            .subVectors(currentWaypoint, npcPosition)
+            .normalize();
+          
+          if (direction.length() > 0.1) {
+            const targetRotation = Math.atan2(direction.x, direction.z);
+            data.npc.rotation.y = targetRotation;
+          }
+        }
+      } else {
+        // NPC is moving toward waypoint
+        const direction = new THREE.Vector3().subVectors(currentWaypoint, npcPosition);
+        const distance = direction.length();
+        
+        if (distance < 0.1) {
+          // Reached waypoint
+          data.isMoving = false;
+          data.npc.position.copy(currentWaypoint);
+          
+          // Move to next waypoint (loop back to start if at end)
+          data.currentWaypointIndex = (data.currentWaypointIndex + 1) % data.waypoints.length;
+          
+          // Reset wait time with some randomness
+          data.waitTime = 2 + Math.random() * 3;
+        } else {
+          // Move toward waypoint
+          const moveVector = direction.normalize().multiplyScalar(data.moveSpeed * deltaTime);
+          data.npc.position.add(moveVector);
+        }
+      }
+    });
+  }
+
+  private async loadOfficeNPCs(): Promise<void> {
+    console.log('Loading office NPCs...');
+    
+    // NPC configurations with different skins and positions
+    const npcConfigs = [
+      {
+        name: 'office-worker-1',
+        model: 'kenney_blocky-characters/Models/Non-rigged/glTF/basicCharacter.gltf',
+        skin: 'kenney_blocky-characters/Skins/Basic/skin_man.png',
+        position: { x: -2, y: 0, z: -6.2 }, // Behind center-left desk
+        rotation: 0,
+        description: 'Senior Developer - focused on his code'
+      },
+      {
+        name: 'office-worker-2', 
+        model: 'kenney_blocky-characters/Models/Non-rigged/glTF/advancedCharacter.gltf',
+        skin: 'kenney_blocky-characters/Skins/Basic/skin_woman.png',
+        position: { x: 2, y: 0, z: -6.2 }, // Behind center-right desk
+        rotation: 0,
+        description: 'Project Manager - reviewing reports'
+      },
+      {
+        name: 'office-worker-3',
+        model: 'kenney_blocky-characters/Models/Non-rigged/glTF/basicCharacter.gltf', 
+        skin: 'kenney_blocky-characters/Skins/Basic/skin_manAlternative.png',
+        position: { x: -7, y: 0, z: 2 }, // Near filing cabinets on left side
+        rotation: Math.PI / 2, // Facing right (toward filing cabinet)
+        description: 'HR Representative - organizing files'
+      },
+      {
+        name: 'office-worker-4',
+        model: 'kenney_blocky-characters/Models/Non-rigged/glTF/advancedCharacter.gltf',
+        skin: 'kenney_blocky-characters/Skins/Basic/skin_womanAlternative.png',
+        position: { x: 4, y: 0, z: 8 }, // Near windows, looking outside
+        rotation: Math.PI, // Facing toward windows
+        description: 'Designer - taking a break by the window'
+      }
+    ];
+
+    // Load each NPC
+    for (let i = 0; i < npcConfigs.length; i++) {
+      const config = npcConfigs[i];
+      try {
+        const npc = await this.createNPC(config);
+        this.npcs.push(npc);
+        this.add(npc);
+        
+        // Initialize movement data for this NPC
+        const movementData = this.createMovementDataForNPC(npc, i);
+        this.npcMovementData.push(movementData);
+        
+        console.log(`✅ Loaded NPC: ${config.name}`);
+      } catch (error) {
+        console.error(`❌ Failed to load NPC ${config.name}:`, error);
+      }
+    }
+    
+    console.log(`Loaded ${this.npcs.length} NPCs successfully`);
+  }
+
+  private createMovementDataForNPC(npc: THREE.Group, index: number): NPCMovementData {
+    const waypoints: THREE.Vector3[] = [];
+    
+    // Define different movement patterns for each NPC based on their role
+    switch (index) {
+      case 0: // Dave (Developer) - moves between his desk and coffee area
+        waypoints.push(
+          new THREE.Vector3(-2, 0, -6.2), // His desk
+          new THREE.Vector3(-2, 0, -4),    // Step away from desk
+          new THREE.Vector3(-4, 0, -2),    // Move toward center
+          new THREE.Vector3(-6, 0, 0),     // Coffee/break area
+          new THREE.Vector3(-4, 0, -2),    // Return path
+          new THREE.Vector3(-2, 0, -4)     // Back to desk area
+        );
+        break;
+        
+      case 1: // Sarah (Project Manager) - moves around checking on people
+        waypoints.push(
+          new THREE.Vector3(2, 0, -6.2),   // Her desk
+          new THREE.Vector3(0, 0, -4),     // Center of office
+          new THREE.Vector3(-2, 0, -4),    // Check on Dave
+          new THREE.Vector3(0, 0, -2),     // Center again
+          new THREE.Vector3(4, 0, 0),      // Check right side
+          new THREE.Vector3(2, 0, -2),     // Return path
+          new THREE.Vector3(2, 0, -4)      // Back toward desk
+        );
+        break;
+        
+      case 2: // Mike (HR) - moves between filing cabinets and around office
+        waypoints.push(
+          new THREE.Vector3(-7, 0, 2),     // Starting position
+          new THREE.Vector3(-7, 0, -2),    // Other filing cabinet
+          new THREE.Vector3(-4, 0, -2),    // Move into office
+          new THREE.Vector3(-2, 0, 0),     // Center-left area
+          new THREE.Vector3(-4, 0, 2),     // Back toward filing area
+          new THREE.Vector3(-7, 0, 0)      // Return to filing area
+        );
+        break;
+        
+      case 3: // Emma (Designer) - moves around looking at different areas
+        waypoints.push(
+          new THREE.Vector3(4, 0, 8),      // By windows
+          new THREE.Vector3(2, 0, 6),      // Step back from windows
+          new THREE.Vector3(0, 0, 4),      // Center office
+          new THREE.Vector3(-2, 0, 2),     // Left side
+          new THREE.Vector3(0, 0, 0),      // Center
+          new THREE.Vector3(2, 0, 2),      // Right side
+          new THREE.Vector3(4, 0, 4)       // Back toward windows
+        );
+        break;
+    }
+    
+    return {
+      npc: npc,
+      waypoints: waypoints,
+      currentWaypointIndex: 0,
+      moveSpeed: 0.5 + Math.random() * 0.5, // Random speed between 0.5 and 1.0
+      waitTime: 2 + Math.random() * 3, // Random wait time between 2-5 seconds
+      currentWaitTime: 0,
+      isMoving: false,
+      name: npc.name
+    };
+  }
+
+  private async createNPC(config: {
+    name: string;
+    model: string;
+    skin: string;
+    position: { x: number; y: number; z: number };
+    rotation: number;
+    description: string;
+  }): Promise<THREE.Group> {
+    // Load the character model
+    const character = await this.assetLoader.loadGLTF(config.model, config.name);
+    
+    // Scale the character appropriately (1.5x bigger than before: 0.05 * 1.5 = 0.075)
+    character.scale.setScalar(0.075);
+    
+    // Load and apply the skin texture
+    const skinTexture = await this.assetLoader.loadTexture(config.skin);
+    skinTexture.flipY = false; // GLTF textures don't need flipping
+    
+    // Apply the skin to all meshes
+    character.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.material = new THREE.MeshLambertMaterial({
+          map: skinTexture,
+          color: 0xffffff
+        });
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    
+    // Position the character
+    character.position.set(config.position.x, config.position.y, config.position.z);
+    character.rotation.y = config.rotation;
+    
+    // Add name and description for potential interactions
+    character.name = config.name;
+    character.userData.description = config.description;
+    
+    return character;
+  }
+}
+
+interface NPCMovementData {
+  npc: THREE.Group;
+  waypoints: THREE.Vector3[];
+  currentWaypointIndex: number;
+  moveSpeed: number;
+  waitTime: number;
+  currentWaitTime: number;
+  isMoving: boolean;
+  name: string;
 } 
