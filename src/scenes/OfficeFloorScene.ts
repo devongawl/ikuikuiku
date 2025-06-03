@@ -19,8 +19,8 @@ export class OfficeFloorScene extends Scene {
       // Set up office lighting
       this.setupLighting();
       
-      // Create the open office layout
-      this.createOfficeLayout();
+      // Create the square office layout
+      this.createSquareOfficeLayout();
       
       // Add office details and furniture
       this.addOfficeDetails();
@@ -35,97 +35,279 @@ export class OfficeFloorScene extends Scene {
   }
 
   protected setupLighting(): void {
-    // Office fluorescent lighting
-    const officeLight1 = new THREE.DirectionalLight(0xF5F5DC, 0.9);
-    officeLight1.position.set(8, 10, 8);
-    officeLight1.castShadow = true;
-    this.add(officeLight1);
+    // Natural window lighting from the windowed side
+    const windowLight = new THREE.DirectionalLight(0xFFFAF0, 1.2);
+    windowLight.position.set(0, 10, 12);
+    windowLight.castShadow = true;
+    windowLight.shadow.mapSize.width = 2048;
+    windowLight.shadow.mapSize.height = 2048;
+    windowLight.shadow.camera.near = 0.5;
+    windowLight.shadow.camera.far = 50;
+    windowLight.shadow.camera.left = -15;
+    windowLight.shadow.camera.right = 15;
+    windowLight.shadow.camera.top = 15;
+    windowLight.shadow.camera.bottom = -15;
+    this.add(windowLight);
 
-    const officeLight2 = new THREE.DirectionalLight(0xF5F5DC, 0.9);
-    officeLight2.position.set(-8, 10, -8);
-    officeLight2.castShadow = true;
-    this.add(officeLight2);
+    // Soft office fluorescent lighting
+    const officeLight = new THREE.DirectionalLight(0xF5F5DC, 0.6);
+    officeLight.position.set(-8, 10, -8);
+    officeLight.castShadow = true;
+    this.add(officeLight);
 
-    // Warm ambient office light
-    const ambientLight = new THREE.AmbientLight(0xFFFAF0, 0.7);
+    // Warm ambient light
+    const ambientLight = new THREE.AmbientLight(0xFFFAF0, 0.4);
     this.add(ambientLight);
   }
 
-  private createOfficeLayout(): void {
-    // Office floor
+  private createSquareOfficeLayout(): void {
+    // Square office floor (20x20 units)
     const floor = new THREE.Mesh(
-      new THREE.BoxGeometry(24, 0.1, 20),
-      new THREE.MeshLambertMaterial({ color: 0xF0F0F0 })
+      new THREE.BoxGeometry(20, 0.1, 20),
+      new THREE.MeshLambertMaterial({ color: 0xF5F5F5 })
     );
     floor.position.set(0, 0, 0);
     floor.receiveShadow = true;
     this.add(floor);
 
-    // Office walls
-    this.createOfficeWalls();
+    // Create office walls and windows
+    this.createWallsAndWindows();
     
-    // Create desk arrangements
+    // Create desk arrangements along the windowed wall
     this.createDeskArea();
     
-    // Add elevator area
+    // Add elevator area at the back
     this.createElevatorEntrance();
   }
 
-  private createOfficeWalls(): void {
+  private createWallsAndWindows(): void {
     const wallMaterial = new THREE.MeshLambertMaterial({ color: 0xFAFAFA });
+    const windowMaterial = new THREE.MeshLambertMaterial({ 
+      color: 0x87CEEB, 
+      transparent: true, 
+      opacity: 0.3 
+    });
+    const windowFrameMaterial = new THREE.MeshLambertMaterial({ color: 0xC0C0C0 });
     const wallHeight = 4;
     const wallThickness = 0.3;
 
-    const walls = [
-      // Back wall
-      { x: 0, z: -10, width: 24, depth: wallThickness },
-      // Front wall (with elevator opening)
-      { x: -8, z: 10, width: 8, depth: wallThickness },
-      { x: 8, z: 10, width: 8, depth: wallThickness },
-      // Side walls
-      { x: -12, z: 0, width: wallThickness, depth: 20 },
-      { x: 12, z: 0, width: wallThickness, depth: 20 }
+    // Back wall with elevator cutout - create two sections instead of one solid wall
+    const elevatorWidth = 2.5; // Slightly wider than elevator doors for proper clearance
+    const wallSectionWidth = (20 - elevatorWidth) / 2;
+    
+    // Left section of back wall
+    const backWallLeft = new THREE.Mesh(
+      new THREE.BoxGeometry(wallSectionWidth, wallHeight, wallThickness),
+      wallMaterial
+    );
+    backWallLeft.position.set(-wallSectionWidth/2 - elevatorWidth/2, wallHeight / 2, -10);
+    backWallLeft.castShadow = true;
+    backWallLeft.receiveShadow = true;
+    this.add(backWallLeft);
+
+    // Right section of back wall
+    const backWallRight = new THREE.Mesh(
+      new THREE.BoxGeometry(wallSectionWidth, wallHeight, wallThickness),
+      wallMaterial
+    );
+    backWallRight.position.set(wallSectionWidth/2 + elevatorWidth/2, wallHeight / 2, -10);
+    backWallRight.castShadow = true;
+    backWallRight.receiveShadow = true;
+    this.add(backWallRight);
+
+    // Left wall (solid)
+    const leftWall = new THREE.Mesh(
+      new THREE.BoxGeometry(wallThickness, wallHeight, 20),
+      wallMaterial
+    );
+    leftWall.position.set(-10, wallHeight / 2, 0);
+    leftWall.castShadow = true;
+    leftWall.receiveShadow = true;
+    this.add(leftWall);
+
+    // Right wall (solid)  
+    const rightWall = new THREE.Mesh(
+      new THREE.BoxGeometry(wallThickness, wallHeight, 20),
+      wallMaterial
+    );
+    rightWall.position.set(10, wallHeight / 2, 0);
+    rightWall.castShadow = true;
+    rightWall.receiveShadow = true;
+    this.add(rightWall);
+
+    // Front wall with windows (the windowed side)
+    this.createWindowedWall();
+  }
+
+  private createWindowedWall(): void {
+    const wallMaterial = new THREE.MeshLambertMaterial({ color: 0xFAFAFA });
+    const windowMaterial = new THREE.MeshLambertMaterial({ 
+      color: 0x87CEEB, 
+      transparent: true, 
+      opacity: 0.3 
+    });
+    const windowFrameMaterial = new THREE.MeshLambertMaterial({ color: 0xC0C0C0 });
+    const wallHeight = 4;
+    const wallThickness = 0.3;
+
+    // Create wall sections between windows
+    const wallSections = [
+      { x: -8, width: 4 }, // Left end
+      { x: -2, width: 4 }, // Between first and second window
+      { x: 2, width: 4 },  // Between second and third window  
+      { x: 8, width: 4 }   // Right end
     ];
 
-    walls.forEach(wall => {
-      const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(wall.width, wallHeight, wall.depth),
+    wallSections.forEach(section => {
+      const wallPart = new THREE.Mesh(
+        new THREE.BoxGeometry(section.width, wallHeight, wallThickness),
         wallMaterial
       );
-      mesh.position.set(wall.x, wallHeight / 2, wall.z);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      this.add(mesh);
+      wallPart.position.set(section.x, wallHeight / 2, 10);
+      wallPart.castShadow = true;
+      wallPart.receiveShadow = true;
+      this.add(wallPart);
+    });
+
+    // Create windows
+    const windowPositions = [-6, 0, 6];
+    windowPositions.forEach(x => {
+      this.createWindow(x, 10);
     });
   }
 
+  private createWindow(x: number, z: number): void {
+    const windowWidth = 3;
+    const windowHeight = 2.5;
+    const frameThickness = 0.1;
+    const windowMaterial = new THREE.MeshLambertMaterial({ 
+      color: 0x87CEEB, 
+      transparent: true, 
+      opacity: 0.3 
+    });
+    const frameMaterial = new THREE.MeshLambertMaterial({ color: 0xC0C0C0 });
+
+    // Window glass
+    const windowGlass = new THREE.Mesh(
+      new THREE.BoxGeometry(windowWidth, windowHeight, 0.05),
+      windowMaterial
+    );
+    windowGlass.position.set(x, 1.5, z - 0.1);
+    this.add(windowGlass);
+
+    // Window frame
+    const frameTop = new THREE.Mesh(
+      new THREE.BoxGeometry(windowWidth + 0.2, frameThickness, frameThickness),
+      frameMaterial
+    );
+    frameTop.position.set(x, 2.75, z);
+    this.add(frameTop);
+
+    const frameBottom = new THREE.Mesh(
+      new THREE.BoxGeometry(windowWidth + 0.2, frameThickness, frameThickness),
+      frameMaterial
+    );
+    frameBottom.position.set(x, 0.25, z);
+    this.add(frameBottom);
+
+    const frameLeft = new THREE.Mesh(
+      new THREE.BoxGeometry(frameThickness, windowHeight, frameThickness),
+      frameMaterial
+    );
+    frameLeft.position.set(x - windowWidth/2 - 0.1, 1.5, z);
+    this.add(frameLeft);
+
+    const frameRight = new THREE.Mesh(
+      new THREE.BoxGeometry(frameThickness, windowHeight, frameThickness),
+      frameMaterial
+    );
+    frameRight.position.set(x + windowWidth/2 + 0.1, 1.5, z);
+    this.add(frameRight);
+
+    // Window divider (cross pattern)
+    const dividerV = new THREE.Mesh(
+      new THREE.BoxGeometry(frameThickness, windowHeight, frameThickness),
+      frameMaterial
+    );
+    dividerV.position.set(x, 1.5, z);
+    this.add(dividerV);
+
+    const dividerH = new THREE.Mesh(
+      new THREE.BoxGeometry(windowWidth, frameThickness, frameThickness),
+      frameMaterial
+    );
+    dividerH.position.set(x, 1.5, z);
+    this.add(dividerH);
+  }
+
   private createElevatorEntrance(): void {
-    // Simple elevator doors at the entrance
+    // Create elevator recess/alcove for depth
+    const elevatorRecess = new THREE.Mesh(
+      new THREE.BoxGeometry(2.5, 4, 0.5),
+      new THREE.MeshLambertMaterial({ color: 0xE0E0E0 })
+    );
+    elevatorRecess.position.set(0, 2, -10.25);
+    elevatorRecess.receiveShadow = true;
+    this.add(elevatorRecess);
+
+    // Elevator doors positioned within the recess
     const elevatorDoors = new THREE.Mesh(
       new THREE.BoxGeometry(2, 3.5, 0.1),
       new THREE.MeshLambertMaterial({ color: 0xC0C0C0 })
     );
-    elevatorDoors.position.set(0, 1.75, 9.9);
+    elevatorDoors.position.set(0, 1.75, -10.05); // Positioned just in front of the recess
+    elevatorDoors.castShadow = true;
     this.add(elevatorDoors);
+
+    // Add elevator door frame
+    const doorFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 3.7, 0.05),
+      new THREE.MeshLambertMaterial({ color: 0x808080 })
+    );
+    doorFrame.position.set(0, 1.85, -10.02);
+    this.add(doorFrame);
+
+    // Add elevator call button
+    const callButton = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.1, 0.05),
+      new THREE.MeshLambertMaterial({ color: 0x4169E1 })
+    );
+    callButton.position.set(1.5, 1.5, -10.0);
+    this.add(callButton);
   }
 
   private createDeskArea(): void {
-    // Her desk (left side, facing center)
+    // Position desks along the back wall (facing toward the windows)
+    // Her desk (left side of back wall)
     this.herDesk = this.createDesk(true); // personalized
-    this.herDesk.position.set(-4, 0, -2);
-    this.herDesk.rotation.y = Math.PI / 2; // Facing right
+    this.herDesk.position.set(-6, 0, -7);
+    this.herDesk.rotation.y = 0; // Facing toward windows
     this.herDesk.name = 'her-desk';
     this.add(this.herDesk);
 
-    // The target desk (right side, facing her desk)
+    // The target desk (right side of back wall)
     this.targetDesk = this.createDesk(false); // empty/new
-    this.targetDesk.position.set(4, 0, -2);
-    this.targetDesk.rotation.y = -Math.PI / 2; // Facing left
+    this.targetDesk.position.set(6, 0, -7);
+    this.targetDesk.rotation.y = 0; // Facing toward windows
     this.targetDesk.name = 'target-desk';
     this.add(this.targetDesk);
 
-    // Other office desks (background)
-    this.createBackgroundDesks();
+    // Additional desks along the back wall
+    const additionalDeskPositions = [
+      { x: -2, z: -7 }, // Center-left
+      { x: 2, z: -7 }   // Center-right
+    ];
+
+    additionalDeskPositions.forEach(pos => {
+      const desk = this.createDesk(false);
+      desk.position.set(pos.x, 0, pos.z);
+      desk.rotation.y = 0; // Facing toward windows
+      this.add(desk);
+    });
+  }
+
+  private createMeetingArea(): void {
+    // Removed conference table - keeping this method empty in case we want to add other furniture later
   }
 
   private createDesk(isPersonalized: boolean): THREE.Group {
@@ -233,21 +415,6 @@ export class OfficeFloorScene extends Scene {
     return chair;
   }
 
-  private createBackgroundDesks(): void {
-    const deskPositions = [
-      { x: -8, z: -6 }, { x: -4, z: -6 }, { x: 0, z: -6 }, { x: 4, z: -6 }, { x: 8, z: -6 },
-      { x: -8, z: 2 }, { x: -4, z: 2 }, { x: 0, z: 2 }, { x: 4, z: 2 }, { x: 8, z: 2 }
-    ];
-
-    deskPositions.forEach(pos => {
-      const desk = this.createDesk(false);
-      desk.position.set(pos.x, 0, pos.z);
-      // Random rotation for variety
-      desk.rotation.y = Math.random() * Math.PI * 2;
-      this.add(desk);
-    });
-  }
-
   private addOfficeDetails(): void {
     // Add office memories
     this.addOfficeMemories();
@@ -257,10 +424,9 @@ export class OfficeFloorScene extends Scene {
   }
 
   private addOfficeDecor(): void {
-    // Office plants in corners
+    // Office plants in corners (away from windows)
     const plantPositions = [
-      { x: -10, z: -8 }, { x: 10, z: -8 },
-      { x: -10, z: 8 }, { x: 10, z: 8 }
+      { x: -8, z: -8 }, { x: 8, z: -8 }  // Back corners only
     ];
 
     plantPositions.forEach(pos => {
@@ -268,6 +434,47 @@ export class OfficeFloorScene extends Scene {
       plant.position.set(pos.x, 0, pos.z);
       this.add(plant);
     });
+
+    // Add some filing cabinets along the side walls
+    this.addFilingCabinets();
+  }
+
+  private addFilingCabinets(): void {
+    const cabinetPositions = [
+      { x: -8, z: -4 }, { x: -8, z: 4 },  // Left wall
+      { x: 8, z: -4 }, { x: 8, z: 4 }     // Right wall
+    ];
+
+    cabinetPositions.forEach(pos => {
+      const cabinet = this.createFilingCabinet();
+      cabinet.position.set(pos.x, 0, pos.z);
+      this.add(cabinet);
+    });
+  }
+
+  private createFilingCabinet(): THREE.Group {
+    const cabinet = new THREE.Group();
+    
+    // Cabinet body
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1.2, 0.6),
+      new THREE.MeshLambertMaterial({ color: 0xD3D3D3 })
+    );
+    body.position.y = 0.6;
+    body.castShadow = true;
+    cabinet.add(body);
+
+    // Cabinet drawers (visual lines)
+    for (let i = 0; i < 3; i++) {
+      const drawerHandle = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.05, 0.05),
+        new THREE.MeshLambertMaterial({ color: 0x696969 })
+      );
+      drawerHandle.position.set(0.4, 0.3 + i * 0.3, 0);
+      cabinet.add(drawerHandle);
+    }
+
+    return cabinet;
   }
 
   private createOfficePlant(): THREE.Group {
@@ -296,7 +503,7 @@ export class OfficeFloorScene extends Scene {
     if (this.herDesk) {
       this.addMemory(
         this.herDesk,
-        "My desk. I'd set it up just how I liked it. Everything in its place.",
+        "My desk facing the windows. I loved watching the world outside while working.",
         { highlight: true }
       );
     }
@@ -305,7 +512,7 @@ export class OfficeFloorScene extends Scene {
     if (this.targetDesk) {
       this.addMemory(
         this.targetDesk,
-        "That empty desk across from mine. I had no idea it would change my life.",
+        "That desk with the perfect view of the windows. A great spot for a new developer.",
         { highlight: true }
       );
     }
@@ -315,7 +522,7 @@ export class OfficeFloorScene extends Scene {
     // Initial narrative
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('storyNarration', {
-        detail: { message: "Just another Tuesday at the office. I settled in at my usual desk..." }
+        detail: { message: "Just another Tuesday at the office. I loved my desk facing the windows..." }
       }));
     }, 1000);
 
@@ -337,7 +544,7 @@ export class OfficeFloorScene extends Scene {
     setTimeout(() => {
       this.storyPhase = 'desk-selection';
       window.dispatchEvent(new CustomEvent('storyNarration', {
-        detail: { message: "A new developer was being shown around. He was looking for a desk..." }
+        detail: { message: "A new developer was being shown around. They were looking for a desk with a good view..." }
       }));
     }, 3000);
 
@@ -345,7 +552,7 @@ export class OfficeFloorScene extends Scene {
     setTimeout(() => {
       this.storyPhase = 'meeting';
       window.dispatchEvent(new CustomEvent('storyNarration', {
-        detail: { message: "Of all the empty desks, he chose the one right across from mine." }
+        detail: { message: "Of all the window desks, he chose the one right next to mine." }
       }));
       
       // Final revelation
@@ -362,7 +569,7 @@ export class OfficeFloorScene extends Scene {
     const handleGridMovement = (event: CustomEvent) => {
       const { position } = event.detail;
       
-      // Check if character reached her desk
+      // Check if character reached her desk area
       this.checkDeskReached(position.x, position.z);
     };
     
@@ -371,10 +578,10 @@ export class OfficeFloorScene extends Scene {
   }
 
   private checkDeskReached(gridX: number, gridZ: number): void {
-    // Her desk is at world position (-4, -2), grid position (-2, -1)
-    if (gridX === -2 && gridZ === -1) {
+    // Her desk is now at world position (-6, -7), grid position (-3, -3.5)
+    if (gridX === -3 && gridZ === -3) {
       window.dispatchEvent(new CustomEvent('storyNarration', {
-        detail: { message: "Settling in for another day of work..." }
+        detail: { message: "Settling in at my desk with the beautiful window view..." }
       }));
     }
   }
@@ -411,16 +618,30 @@ export class OfficeFloorScene extends Scene {
       }
     };
 
-    // Register walls
-    registerCollision('back-wall', 0, -10, 24, 0.3);
-    registerCollision('front-wall-left', -8, 10, 8, 0.3);
-    registerCollision('front-wall-right', 8, 10, 8, 0.3);
-    registerCollision('left-wall', -12, 0, 0.3, 20);
-    registerCollision('right-wall', 12, 0, 0.3, 20);
+    // Register walls - updated for elevator cutout
+    const elevatorWidth = 2.5;
+    const wallSectionWidth = (20 - elevatorWidth) / 2;
+    const leftWallCenterX = -wallSectionWidth/2 - elevatorWidth/2;
+    const rightWallCenterX = wallSectionWidth/2 + elevatorWidth/2;
+    
+    registerCollision('back-wall-left', leftWallCenterX, -10, wallSectionWidth, 0.3);
+    registerCollision('back-wall-right', rightWallCenterX, -10, wallSectionWidth, 0.3);
+    registerCollision('front-wall-sections', 0, 10, 20, 0.3); // Window wall structure
+    registerCollision('left-wall', -10, 0, 0.3, 20);
+    registerCollision('right-wall', 10, 0, 0.3, 20);
 
-    // Register key desks (but leave space for walking around them)
-    registerCollision('her-desk', -4, -2, 1.5, 1);
-    registerCollision('target-desk', 4, -2, 1.5, 1);
+    // Register elevator area as walkable but with some collision for the recess
+    registerCollision('elevator-recess', 0, -10.25, 2.5, 0.5);
+
+    // Register key desks along back wall
+    registerCollision('her-desk', -6, -7, 1.5, 1);
+    registerCollision('target-desk', 6, -7, 1.5, 1);
+
+    // Register filing cabinets
+    registerCollision('filing-cabinets-left', -8, -4, 1, 0.6);
+    registerCollision('filing-cabinets-left2', -8, 4, 1, 0.6);
+    registerCollision('filing-cabinets-right', 8, -4, 1, 0.6);
+    registerCollision('filing-cabinets-right2', 8, 4, 1, 0.6);
 
     console.log('✅ Office floor collisions registered');
   }

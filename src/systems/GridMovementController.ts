@@ -68,6 +68,12 @@ export class GridMovementController {
     this.bedPosition = { x, z };
   }
 
+  clearBedPosition(): void {
+    this.bedPosition = null;
+    // Also ensure we're not in bed when clearing the position
+    this.setInBed(false);
+  }
+
   setInBed(inBed: boolean): void {
     this.isInBed = inBed;
     // Transition will be handled in update

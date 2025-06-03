@@ -258,6 +258,11 @@ class RelationshipStoryGame {
           );
         }, 1000);
       }
+      // For all other scenes, clear bed position to prevent unwanted bed interactions
+      else {
+        // Clear bed position - bed interactions should only work in apartment
+        this.characterController.clearBedPosition();
+      }
       
       // Special handling for crossy road scene
       if (sceneName === 'crossy-road') {
@@ -292,7 +297,7 @@ class RelationshipStoryGame {
       // Special handling for office floor scene
       if (sceneName === 'office-floor') {
         // Start character at the elevator entrance
-        this.characterController.setPosition(0, 0, 8); // World position (elevator entrance)
+        this.characterController.setPosition(0, 0, -8); // World position (closer to back wall where desks are)
         this.characterController.setInBed(false);
         
         // Show office floor arrival

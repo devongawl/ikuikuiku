@@ -242,6 +242,10 @@ export class KenneyCharacterController {
     this.gridMovement.setBedPosition(x, z);
   }
 
+  clearBedPosition(): void {
+    this.gridMovement.clearBedPosition();
+  }
+
   setInBed(inBed: boolean): void {
     this.gridMovement.setInBed(inBed);
   }
