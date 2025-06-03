@@ -11,6 +11,35 @@ export class ApartmentScene extends Scene {
   constructor() {
     super('apartment-scene', 'Tuesday Morning - Her Apartment');
     this.assetLoader = new AssetLoader();
+    
+    // Listen for character movement to check for door triggers
+    this.setupGridMovementListener();
+  }
+
+  private setupGridMovementListener(): void {
+    const handleGridMovement = (event: CustomEvent) => {
+      const { position } = event.detail;
+      console.log(`🚶‍♀️ Character moved to grid position: (${position.x}, ${position.z})`);
+      
+      // Check if character reached the door
+      this.checkGridPositionTriggers(position.x, position.z);
+    };
+    
+    window.addEventListener('gridMoveComplete', handleGridMovement as EventListener);
+    
+    // Store reference to remove listener later
+    (this as any).gridMovementListener = handleGridMovement;
+  }
+
+  // Override unload to clean up event listener
+  unload(): void {
+    super.unload();
+    
+    // Remove the grid movement listener
+    if ((this as any).gridMovementListener) {
+      window.removeEventListener('gridMoveComplete', (this as any).gridMovementListener);
+      (this as any).gridMovementListener = null;
+    }
   }
 
   protected async loadAssets(): Promise<void> {
@@ -83,8 +112,10 @@ export class ApartmentScene extends Scene {
     const wallData = [
       // Back wall
       { x: 0, z: -12, width: 24, depth: wallThickness, name: 'back-wall' },
-      // Front wall (with gap for exit)
+      // Front wall (with smaller gap for exit door centered at x=3)
       { x: -6, z: 8, width: 12, depth: wallThickness, name: 'front-wall-left' },
+      { x: 1, z: 8, width: 2, depth: wallThickness, name: 'front-wall-center-left' },
+      { x: 5, z: 8, width: 2, depth: wallThickness, name: 'front-wall-center-right' },
       { x: 9, z: 8, width: 6, depth: wallThickness, name: 'front-wall-right' },
       // Side walls
       { x: -12, z: -2, width: wallThickness, depth: 20, name: 'left-wall' },
@@ -280,22 +311,91 @@ export class ApartmentScene extends Scene {
     coffeeTable.castShadow = true;
     this.add(coffeeTable);
 
-    // Exit door
+    // Exit door - positioned in the front wall gap at x=3
     this.exitDoor = new THREE.Mesh(
       new THREE.BoxGeometry(1.8, 3.5, 0.2),
       new THREE.MeshLambertMaterial({ color: 0x8B4513 })
     );
-    this.exitDoor.position.set(x, 1.75, z + 7.9);
+    this.exitDoor.position.set(3, 1.75, 8); // Fixed position in front wall
     this.exitDoor.name = 'exit-door';
     this.add(this.exitDoor);
 
-    // Door handle
+    // Door handle - make it more prominent
     const handle = new THREE.Mesh(
-      new THREE.BoxGeometry(0.1, 0.3, 0.1),
+      new THREE.BoxGeometry(0.15, 0.4, 0.15),
       new THREE.MeshLambertMaterial({ color: 0xFFD700 })
     );
-    handle.position.set(x + 0.7, 1.5, z + 8.05);
+    handle.position.set(3.7, 1.5, 8.1); // Adjusted to door position
     this.add(handle);
+
+    // Door frame to make it more visible
+    const doorFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 4, 0.3),
+      new THREE.MeshLambertMaterial({ color: 0xFFFFFF })
+    );
+    doorFrame.position.set(3, 2, 7.85); // Adjusted to door position
+    this.add(doorFrame);
+
+    // Doormat - positioned logically in front of the door
+    const doormat = new THREE.Mesh(
+      new THREE.BoxGeometry(2, 0.05, 1),
+      new THREE.MeshLambertMaterial({ color: 0x8B4513 })
+    );
+    doormat.position.set(3, 0.025, 6); // Moved to align with grid position (1.5, 3) 
+    doormat.name = 'doormat';
+    this.add(doormat);
+
+    // Add a larger "exit zone" visual indicator
+    const exitZone = new THREE.Mesh(
+      new THREE.BoxGeometry(4, 0.01, 2),
+      new THREE.MeshLambertMaterial({ 
+        color: 0xFFD700, 
+        transparent: true, 
+        opacity: 0.3 
+      })
+    );
+    exitZone.position.set(3, 0.005, 7); // Larger golden area around door
+    exitZone.name = 'exit-zone';
+    this.add(exitZone);
+
+    // Add EXIT sign above door
+    const exitSign = new THREE.Mesh(
+      new THREE.BoxGeometry(1.5, 0.3, 0.1),
+      new THREE.MeshLambertMaterial({ color: 0xFF0000 })
+    );
+    exitSign.position.set(3, 3.2, 8.1); // Adjusted to door position
+    this.add(exitSign);
+
+    // EXIT text (simple representation)
+    const exitText = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 0.2, 0.11),
+      new THREE.MeshLambertMaterial({ color: 0xFFFFFF })
+    );
+    exitText.position.set(3, 3.2, 8.15); // Adjusted to door position
+    this.add(exitText);
+
+    // Glowing light around the door area for extra visibility
+    const doorLight = new THREE.PointLight(0xFFFFAA, 0.8, 6);
+    doorLight.position.set(3, 2.5, 7.5); // Adjusted to door position
+    this.add(doorLight);
+
+    // Floor path leading from living room to door
+    const pathPositions = [
+      { x: 5, z: 4 }, // Start near living room
+      { x: 4.5, z: 5 },
+      { x: 4, z: 6 },
+      { x: 3.5, z: 6.5 },
+      { x: 3, z: 6 }, // End at doormat - aligned with grid
+    ];
+    
+    pathPositions.forEach(pos => {
+      const pathTile = new THREE.Mesh(
+        new THREE.BoxGeometry(0.8, 0.02, 0.8),
+        new THREE.MeshLambertMaterial({ color: 0xD2B48C })
+      );
+      pathTile.position.set(pos.x, 0.01, pos.z);
+      this.add(pathTile);
+    });
   }
 
   private addApartmentMemories(): void {
@@ -344,14 +444,32 @@ export class ApartmentScene extends Scene {
       );
     }
 
+    // Doormat memory - clear indicator of where to go
+    const doormat = this.getObjectByName('doormat');
+    if (doormat) {
+      this.addMemory(
+        doormat,
+        "The exit to leave for work. Time to head out and cross the street to the office.",
+        { 
+          highlight: true,
+          animation: () => {
+            // Gentle pulsing effect for the doormat
+            const time = Date.now() * 0.003;
+            const scale = 1 + Math.sin(time) * 0.1;
+            doormat.scale.setScalar(scale);
+          }
+        }
+      );
+    }
+
     // Exit door trigger
     if (this.exitDoor) {
       this.exitDoor.userData.isExitDoor = true;
-      this.exitDoor.userData.nextScene = 'office-building';
+      this.exitDoor.userData.nextScene = 'crossy-road';
       
       this.addMemory(
         this.exitDoor,
-        "Time to head to work. The commute was always a good time to think about the day ahead.",
+        "Time to head to work. I'll need to cross the street to get to the office building.",
         { highlight: true }
       );
     }
@@ -689,6 +807,8 @@ export class ApartmentScene extends Scene {
     // Register all boundary walls
     registerWallCollision('back-wall', 0, -12, 24, 0.3);
     registerWallCollision('front-wall-left', -6, 8, 12, 0.3);
+    registerWallCollision('front-wall-center-left', 1, 8, 2, 0.3);
+    registerWallCollision('front-wall-center-right', 5, 8, 2, 0.3);
     registerWallCollision('front-wall-right', 9, 8, 6, 0.3);
     registerWallCollision('left-wall', -12, -2, 0.3, 20);
     registerWallCollision('right-wall', 12, -2, 0.3, 20);
@@ -720,7 +840,43 @@ export class ApartmentScene extends Scene {
     console.log('📍 Occupied positions:', occupiedPositions);
   }
 
+  // Add method to check for door trigger based on grid position
+  checkGridPositionTriggers(gridX: number, gridZ: number): void {
+    // Doormat is at world position (3, 6), which is grid position (1.5, 3)
+    // Exit zone is at world position (3, 7), which is grid position (1.5, 3.5)
+    // Trigger when character reaches grid positions around the door area
+    if ((gridX === 1 || gridX === 2) && (gridZ === 3 || gridZ === 4)) {
+      console.log('🚪 Player reached door area - triggering scene transition');
+      
+      // Add a brief delay and message before transition
+      window.dispatchEvent(new CustomEvent('doorReached', { 
+        detail: { message: 'Leaving for work...' }
+      }));
+      
+      // Trigger the memory event that will cause scene transition after delay
+      setTimeout(() => {
+        if (this.exitDoor) {
+          const event = {
+            object: this.exitDoor,
+            point: new THREE.Vector3(3, 0, 8),
+            memory: {
+              object: this.exitDoor,
+              text: "Time to head to work. I'll need to cross the street to get to the office building.",
+              triggered: true
+            }
+          };
+          
+          // Dispatch the memory triggered event
+          window.dispatchEvent(new CustomEvent('memoryTriggered', { detail: event }));
+        }
+      }, 1000); // 1 second delay
+    }
+  }
+
   update(deltaTime: number): void {
     super.update(deltaTime);
+    
+    // Check for grid position triggers by getting character position
+    // We'll listen for grid movement events instead of checking here
   }
 } 

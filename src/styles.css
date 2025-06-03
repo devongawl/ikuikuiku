@@ -176,6 +176,8 @@ body {
   font-size: 12px;
   border-radius: 4px;
   z-index: 1000;
+  min-width: 200px;
+  max-width: 250px;
 }
 
 .debug-panel .debug-line {
@@ -185,4 +187,58 @@ body {
 .debug-panel .label {
   color: #87CEEB;
   font-weight: bold;
+}
+
+/* Debug panel sections */
+.debug-section {
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.debug-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.debug-section-title {
+  color: #FFD700;
+  font-weight: bold;
+  margin-bottom: 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Scene navigation container */
+.scene-nav-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Scene navigation buttons */
+.scene-nav-btn {
+  background: rgba(135, 206, 235, 0.2);
+  border: 1px solid #87CEEB;
+  color: #87CEEB;
+  padding: 6px 10px;
+  font-family: monospace;
+  font-size: 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.scene-nav-btn:hover {
+  background: rgba(135, 206, 235, 0.4);
+  color: white;
+  transform: translateX(2px);
+}
+
+.scene-nav-btn:active {
+  background: rgba(135, 206, 235, 0.6);
+  transform: translateX(1px);
 } 

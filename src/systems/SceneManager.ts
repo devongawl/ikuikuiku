@@ -125,4 +125,8 @@ export class SceneManager {
   getCurrentScene(): Scene | null {
     return this.currentScene;
   }
+
+  getRegisteredScenes(): string[] {
+    return Array.from(this.scenes.keys());
+  }
 } 

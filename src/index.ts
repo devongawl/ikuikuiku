@@ -8,6 +8,9 @@ import { CollisionManager } from './systems/CollisionManager';
 import { TestScene } from './scenes/TestScene';
 import { OfficeScene } from './scenes/OfficeScene';
 import { ApartmentScene } from './scenes/ApartmentScene';
+import { CrossyRoadScene } from './scenes/CrossyRoadScene';
+import { OfficeBuildingScene } from './scenes/OfficeBuildingScene';
+import { OfficeFloorScene } from './scenes/OfficeFloorScene';
 import type { Memory } from './types';
 
 // Core game class
@@ -102,6 +105,14 @@ class RelationshipStoryGame {
   private setupEventListeners(): void {
     window.addEventListener('resize', this.onWindowResize.bind(this));
 
+    // Keyboard controls
+    window.addEventListener('keydown', (e) => {
+      // Toggle debug panel with 'D' key
+      if (e.key === 'd' || e.key === 'D') {
+        this.toggleDebugPanel();
+      }
+    });
+
     // Listen for memory triggered events
     window.addEventListener('memoryTriggered', ((event: CustomEvent) => {
       console.log('Memory triggered:', event.detail);
@@ -123,6 +134,36 @@ class RelationshipStoryGame {
           }
         }
       }
+    }) as EventListener);
+
+    // Listen for vehicle collision events
+    window.addEventListener('vehicleCollision', ((event: CustomEvent) => {
+      console.log('Vehicle collision:', event.detail);
+      this.dialogueSystem.show(event.detail.message, 3000);
+    }) as EventListener);
+
+    // Listen for door reached events
+    window.addEventListener('doorReached', ((event: CustomEvent) => {
+      console.log('Door reached:', event.detail);
+      this.dialogueSystem.show(event.detail.message, 2000);
+    }) as EventListener);
+
+    // Listen for goal reached events
+    window.addEventListener('goalReached', ((event: CustomEvent) => {
+      console.log('Goal reached:', event.detail);
+      this.dialogueSystem.show(event.detail.message, 2000);
+    }) as EventListener);
+
+    // Listen for elevator reached events
+    window.addEventListener('elevatorReached', ((event: CustomEvent) => {
+      console.log('Elevator reached:', event.detail);
+      this.dialogueSystem.show(event.detail.message, 2000);
+    }) as EventListener);
+
+    // Listen for story narration events
+    window.addEventListener('storyNarration', ((event: CustomEvent) => {
+      console.log('Story narration:', event.detail);
+      this.dialogueSystem.show(event.detail.message, 4000);
     }) as EventListener);
 
     // Mouse wheel zoom
@@ -172,10 +213,15 @@ class RelationshipStoryGame {
     
     // Register apartment scene (Day We Met - Act 1)
     this.sceneManager.registerScene('apartment-scene', new ApartmentScene());
+    
+    // Register crossy road scene (Day We Met - Act 2)
+    this.sceneManager.registerScene('crossy-road', new CrossyRoadScene());
 
-    // TODO: Register other scenes as we create them
-    // this.sceneManager.registerScene('office-building', new OfficeBuildingScene());
-    // this.sceneManager.registerScene('office-floor', new OfficeFloorScene());
+    // Register office building scene (Day We Met - Act 2.5)
+    this.sceneManager.registerScene('office-building', new OfficeBuildingScene());
+
+    // Register office floor scene (Day We Met - Act 3: The Meeting)
+    this.sceneManager.registerScene('office-floor', new OfficeFloorScene());
   }
 
   private async loadScene(sceneName: string): Promise<void> {
@@ -183,6 +229,9 @@ class RelationshipStoryGame {
     if (scene) {
       // Set collision manager for the scene BEFORE doing anything else
       scene.setCollisionManager(this.collisionManager);
+      
+      // Set the current scene on the character controller for vehicle collision detection
+      this.characterController.setCurrentScene(scene);
       
       this.interactionSystem.setScene(scene);
       
@@ -205,6 +254,51 @@ class RelationshipStoryGame {
         setTimeout(() => {
           this.dialogueSystem.show(
             "Another morning... Time to start the day.",
+            3000
+          );
+        }, 1000);
+      }
+      
+      // Special handling for crossy road scene
+      if (sceneName === 'crossy-road') {
+        // Start character at the beginning of the crossy road in the safe area
+        this.characterController.setPosition(0, 0, -4); // World position (starting safe grass area)
+        this.characterController.setInBed(false);
+        
+        // Show crossy road instructions
+        setTimeout(() => {
+          this.dialogueSystem.show(
+            "I need to cross the street to get to the office. Watch out for traffic!",
+            4000
+          );
+        }, 1000);
+      }
+      
+      // Special handling for office building scene
+      if (sceneName === 'office-building') {
+        // Start character at the lobby entrance
+        this.characterController.setPosition(0, 0, 6); // World position (lobby entrance)
+        this.characterController.setInBed(false);
+        
+        // Show office building narrative
+        setTimeout(() => {
+          this.dialogueSystem.show(
+            "The office building lobby. Another typical workday... or so I thought.",
+            4000
+          );
+        }, 1000);
+      }
+      
+      // Special handling for office floor scene
+      if (sceneName === 'office-floor') {
+        // Start character at the elevator entrance
+        this.characterController.setPosition(0, 0, 8); // World position (elevator entrance)
+        this.characterController.setInBed(false);
+        
+        // Show office floor arrival
+        setTimeout(() => {
+          this.dialogueSystem.show(
+            "The office floor. Time to start another day...",
             3000
           );
         }, 1000);
@@ -269,12 +363,55 @@ class RelationshipStoryGame {
   private createDebugPanel(): void {
     this.debugPanel = document.createElement('div');
     this.debugPanel.className = 'debug-panel';
+    
+    // Get all registered scenes
+    const registeredScenes = this.sceneManager.getRegisteredScenes();
+    
+    // Create scene navigation section
+    const sceneNavigation = registeredScenes.map(sceneName => 
+      `<button class="scene-nav-btn" data-scene="${sceneName}">${this.getSceneDisplayName(sceneName)}</button>`
+    ).join('');
+    
     this.debugPanel.innerHTML = `
-      <div class="debug-line"><span class="label">Grid Pos:</span> <span id="grid-pos">0, 0</span></div>
-      <div class="debug-line"><span class="label">Queue:</span> <span id="queue-length">0</span></div>
-      <div class="debug-line"><span class="label">Moving:</span> <span id="is-moving">false</span></div>
+      <div class="debug-section">
+        <div class="debug-section-title">Character Debug</div>
+        <div class="debug-line"><span class="label">Grid Pos:</span> <span id="grid-pos">0, 0</span></div>
+        <div class="debug-line"><span class="label">Queue:</span> <span id="queue-length">0</span></div>
+        <div class="debug-line"><span class="label">Moving:</span> <span id="is-moving">false</span></div>
+      </div>
+      <div class="debug-section">
+        <div class="debug-section-title">Scene Navigation</div>
+        <div class="scene-nav-container">
+          ${sceneNavigation}
+        </div>
+      </div>
     `;
+    
+    // Add click listeners to scene navigation buttons
+    this.debugPanel.querySelectorAll('.scene-nav-btn').forEach(button => {
+      button.addEventListener('click', (e) => {
+        const sceneName = (e.target as HTMLElement).getAttribute('data-scene');
+        if (sceneName) {
+          this.loadScene(sceneName);
+        }
+      });
+    });
+    
     document.body.appendChild(this.debugPanel);
+  }
+
+  private getSceneDisplayName(sceneName: string): string {
+    // Convert scene names to readable display names
+    const displayNames: Record<string, string> = {
+      'test-scene': 'Test Scene',
+      'office-scene': 'Office Scene', 
+      'apartment-scene': 'Apartment',
+      'crossy-road': 'Crossy Road',
+      'office-building': 'Office Building',
+      'office-floor': 'Office Floor'
+    };
+    
+    return displayNames[sceneName] || sceneName;
   }
 
   private updateDebugPanel(): void {
@@ -337,6 +474,12 @@ class RelationshipStoryGame {
 
   public notify(text: string, duration?: number): void {
     this.dialogueSystem.notify(text, duration);
+  }
+
+  private toggleDebugPanel(): void {
+    if (this.debugPanel) {
+      this.debugPanel.style.display = this.debugPanel.style.display === 'none' ? 'block' : 'none';
+    }
   }
 }
 

@@ -9,6 +9,8 @@ export class KenneyCharacterController {
   private mixer: THREE.AnimationMixer | null = null;
   private assetLoader: AssetLoader;
   private gridMovement: GridMovementController;
+  private currentScene: any = null; // Reference to current scene for vehicle collision checking
+  private collisionManager: CollisionManager | null = null;
 
   constructor(assetLoader: AssetLoader) {
     this.assetLoader = assetLoader;
@@ -16,7 +18,99 @@ export class KenneyCharacterController {
   }
 
   setCollisionManager(collisionManager: CollisionManager): void {
+    this.collisionManager = collisionManager;
     this.gridMovement.setCollisionManager(collisionManager);
+  }
+
+  // Set the current scene (needed for crossy road vehicle collision detection)
+  setCurrentScene(scene: any): void {
+    this.currentScene = scene;
+  }
+
+  // Check for vehicle collisions at a specific grid position
+  private checkVehicleCollision(gridX: number, gridZ: number): boolean {
+    if (!this.currentScene || typeof this.currentScene.getVehiclePositions !== 'function') {
+      return false; // No vehicle collision checking for this scene
+    }
+
+    const vehicles = this.currentScene.getVehiclePositions();
+    const worldX = gridX * 2; // Convert grid to world coordinates (grid size = 2)
+    const worldZ = gridZ * 2;
+    
+    for (const vehicle of vehicles) {
+      // Check if character position overlaps with vehicle
+      const distanceX = Math.abs(worldX - vehicle.x);
+      const distanceZ = Math.abs(worldZ - vehicle.y); // vehicle.y is actually the Z coordinate in world space
+      
+      // Character collision box (roughly 1x1 units)
+      const characterHalfWidth = 1.0; // Increased for better collision detection
+      const characterHalfDepth = 1.0;
+      
+      // Vehicle collision box
+      const vehicleHalfWidth = vehicle.width / 2;
+      const vehicleHalfDepth = vehicle.height / 2;
+      
+      // Check collision on the same road (Z axis) and overlapping X positions
+      if (distanceZ < (characterHalfDepth + vehicleHalfDepth) && 
+          distanceX < (characterHalfWidth + vehicleHalfWidth)) {
+        console.log(`🚗 Vehicle collision detected at grid (${gridX}, ${gridZ}) with vehicle at (${vehicle.x.toFixed(1)}, ${vehicle.y.toFixed(1)})`);
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  // Override grid movement to include vehicle collision checking
+  private canMoveToPosition(gridX: number, gridZ: number): boolean {
+    // First check static collisions through collision manager
+    if (this.collisionManager && !this.collisionManager.canMoveTo(this.gridMovement.getGridPosition(), { x: gridX, z: gridZ })) {
+      return false;
+    }
+    
+    // Then check vehicle collisions
+    if (this.checkVehicleCollision(gridX, gridZ)) {
+      // Reset player to a safe position and show message
+      this.handleVehicleCollision();
+      return false;
+    }
+    
+    return true;
+  }
+
+  private handleVehicleCollision(): void {
+    console.log('💥 Hit by a vehicle! Respawning...');
+    
+    // Find the nearest safe position (grass area) behind the player
+    const currentPos = this.gridMovement.getGridPosition();
+    let safeZ = currentPos.z;
+    
+    // Move back until we find a safe spot (no vehicles)
+    for (let z = currentPos.z - 1; z >= -2; z--) {
+      if (!this.checkVehicleCollision(currentPos.x, z)) {
+        safeZ = z;
+        break;
+      }
+    }
+    
+    // Reset position
+    this.gridMovement.setGridPosition(currentPos.x, safeZ);
+    
+    // Dispatch event for game to handle (show message, reset score, etc.)
+    window.dispatchEvent(new CustomEvent('vehicleCollision', {
+      detail: { 
+        message: 'Watch out for the traffic! Try again.',
+        resetPosition: { x: currentPos.x, z: safeZ }
+      }
+    }));
+  }
+
+  // Check for vehicle collision in current update loop
+  private checkCurrentPositionVehicleCollision(): void {
+    const currentPos = this.gridMovement.getGridPosition();
+    if (this.checkVehicleCollision(currentPos.x, currentPos.z)) {
+      this.handleVehicleCollision();
+    }
   }
 
   async loadCharacter(skinTexturePath?: string): Promise<THREE.Group> {
@@ -103,6 +197,9 @@ export class KenneyCharacterController {
     if (this.mixer) {
       this.mixer.update(deltaTime);
     }
+
+    // Check for vehicle collision in current update loop
+    this.checkCurrentPositionVehicleCollision();
   }
 
   getCharacter(): THREE.Group | null {
