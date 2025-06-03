@@ -162,7 +162,7 @@ export class KenneyCharacterController {
     const geometry = new THREE.BoxGeometry(1, 2, 1);
     const material = new THREE.MeshLambertMaterial({ color: 0xFFB6C1 });
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.y = 1; // Half the height to sit on ground
+    mesh.position.y = 1.5; // Half the height to sit on ground
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     
@@ -316,7 +316,7 @@ export class KenneyCharacterController {
       }
 
       // Position character above ground
-      fbxModel.position.y = 0;
+      fbxModel.position.y = 0.2;
       
       this.character = fbxModel;
       
