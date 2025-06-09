@@ -1,15 +1,18 @@
 import * as THREE from 'three';
 import { Scene } from './Scene';
 import { AssetLoader } from '../systems/AssetLoader';
+import { NPCSystem } from '../systems/NPCSystem';
 import type { Memory } from '../types';
 
 export class OfficeScene extends Scene {
   private assetLoader: AssetLoader;
   private buildings: THREE.Group[] = [];
+  private npcSystem: NPCSystem;
 
   constructor() {
     super('office-scene', 'Where We Met - The Office');
     this.assetLoader = new AssetLoader();
+    this.npcSystem = new NPCSystem(this, this.assetLoader);
   }
 
   protected async loadAssets(): Promise<void> {
@@ -32,6 +35,9 @@ export class OfficeScene extends Scene {
 
       // Create the office building layout
       await this.createOfficeEnvironment();
+      
+      // Create NPCs with name labels
+      await this.createOfficeNPCs();
       
       // Add interactive memories
       this.addOfficeMemories();
@@ -163,6 +169,17 @@ export class OfficeScene extends Scene {
     );
   }
 
+  private async createOfficeNPCs(): Promise<void> {
+    // Create the office NPCs using the NPC system
+    await this.npcSystem.createOfficeNPCs();
+    console.log('Office NPCs created successfully');
+  }
+
+  // Getter to access the NPC system for other tasks
+  public getNPCSystem(): NPCSystem {
+    return this.npcSystem;
+  }
+
   private addDetails(): void {
     // Add some plants
     const plantPositions = [
@@ -227,6 +244,9 @@ export class OfficeScene extends Scene {
 
   update(deltaTime: number): void {
     super.update(deltaTime);
+    
+    // Update NPCs
+    this.npcSystem.update(deltaTime);
     
     // Gentle rotation for buildings (like they're breathing)
     this.buildings.forEach((building, index) => {

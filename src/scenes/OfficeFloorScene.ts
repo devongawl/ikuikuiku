@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Scene } from './Scene';
 import { AssetLoader } from '../systems/AssetLoader';
+import { NPCSystem } from '../systems/NPCSystem';
 import type { Memory } from '../types';
 
 export class OfficeFloorScene extends Scene {
@@ -10,12 +11,14 @@ export class OfficeFloorScene extends Scene {
   private manager: THREE.Group | null = null;
   private storyPhase: 'arrival' | 'working' | 'developer-arrives' | 'desk-selection' | 'meeting' = 'arrival';
   private assetLoader: AssetLoader;
-  private npcs: THREE.Group[] = []; // Array to hold all NPCs
+  private npcSystem: NPCSystem;
+  private npcs: THREE.Group[] = []; // Array to hold all NPCs (keeping for backwards compatibility)
   private npcMovementData: NPCMovementData[] = []; // Track movement state for each NPC
 
   constructor() {
     super('office-floor', 'The Office - September 15th');
     this.assetLoader = new AssetLoader();
+    this.npcSystem = new NPCSystem(this, this.assetLoader);
     this.setupGridMovementListener();
   }
 
@@ -528,10 +531,10 @@ export class OfficeFloorScene extends Scene {
     // Add memories for NPCs
     this.npcs.forEach((npc, index) => {
       const npcMemories = [
-        "Dave from Development. Always buried in his code, but he gave me great technical advice.",
-        "Sarah, our Project Manager. She had a way of keeping everyone organized and motivated.", 
-        "Mike from HR. A friendly guy who always made sure everyone felt welcome.",
-        "Emma, the UI Designer. We often discussed design principles during coffee breaks."
+        "Devon from Development. Always buried in his code, but he gave me great technical advice.",
+        "Lotte, our Project Manager. She had a way of keeping everyone organized and motivated.", 
+        "Joonatan from HR. A friendly guy who always made sure everyone felt welcome.",
+        "Mark, the UI Designer. We often discussed design principles during coffee breaks."
       ];
 
       if (npc && index < npcMemories.length) {
@@ -710,6 +713,9 @@ export class OfficeFloorScene extends Scene {
   update(deltaTime: number): void {
     super.update(deltaTime);
     
+    // Update NPCs with name labels
+    this.npcSystem.update(deltaTime);
+    
     // Update NPC movements
     this.updateNPCMovements(deltaTime);
     
@@ -768,63 +774,61 @@ export class OfficeFloorScene extends Scene {
   }
 
   private async loadOfficeNPCs(): Promise<void> {
-    console.log('Loading office NPCs...');
+    console.log('Loading office NPCs with name labels...');
     
-    // NPC configurations with different skins and positions
+    // Create NPCs using the NPCSystem with proper names
     const npcConfigs = [
       {
-        name: 'office-worker-1',
-        model: 'kenney_blocky-characters/Models/Non-rigged/glTF/basicCharacter.gltf',
-        skin: 'kenney_blocky-characters/Skins/Basic/skin_man.png',
-        position: { x: -2, y: 0, z: -6.2 }, // Behind center-left desk
-        rotation: 0,
+        name: 'Devon',
+        position: new THREE.Vector3(-2, 0, -6.2), // Behind center-left desk
+        modelType: 'basic' as const,
         description: 'Senior Developer - focused on his code'
       },
       {
-        name: 'office-worker-2', 
-        model: 'kenney_blocky-characters/Models/Non-rigged/glTF/advancedCharacter.gltf',
-        skin: 'kenney_blocky-characters/Skins/Basic/skin_woman.png',
-        position: { x: 2, y: 0, z: -6.2 }, // Behind center-right desk
-        rotation: 0,
+        name: 'Lotte', 
+        position: new THREE.Vector3(2, 0, -6.2), // Behind center-right desk
+        modelType: 'advanced' as const,
         description: 'Project Manager - reviewing reports'
       },
       {
-        name: 'office-worker-3',
-        model: 'kenney_blocky-characters/Models/Non-rigged/glTF/basicCharacter.gltf', 
-        skin: 'kenney_blocky-characters/Skins/Basic/skin_manAlternative.png',
-        position: { x: -7, y: 0, z: 2 }, // Near filing cabinets on left side
-        rotation: Math.PI / 2, // Facing right (toward filing cabinet)
+        name: 'Joonatan',
+        position: new THREE.Vector3(-7, 0, 2), // Near filing cabinets on left side
+        modelType: 'basic' as const,
         description: 'HR Representative - organizing files'
       },
       {
-        name: 'office-worker-4',
-        model: 'kenney_blocky-characters/Models/Non-rigged/glTF/advancedCharacter.gltf',
-        skin: 'kenney_blocky-characters/Skins/Basic/skin_womanAlternative.png',
-        position: { x: 4, y: 0, z: 8 }, // Near windows, looking outside
-        rotation: Math.PI, // Facing toward windows
+        name: 'Mark',
+        position: new THREE.Vector3(4, 0, 8), // Near windows, looking outside
+        modelType: 'advanced' as const,
         description: 'Designer - taking a break by the window'
       }
     ];
 
-    // Load each NPC
+    // Create NPCs using the NPC system
     for (let i = 0; i < npcConfigs.length; i++) {
       const config = npcConfigs[i];
       try {
-        const npc = await this.createNPC(config);
-        this.npcs.push(npc);
-        this.add(npc);
+        const npc = await this.npcSystem.createNPC(config);
+        
+        // Also add to the legacy npcs array for backwards compatibility
+        this.npcs.push(npc.group);
         
         // Initialize movement data for this NPC
-        const movementData = this.createMovementDataForNPC(npc, i);
+        const movementData = this.createMovementDataForNPC(npc.group, i);
         this.npcMovementData.push(movementData);
         
-        console.log(`✅ Loaded NPC: ${config.name}`);
+        console.log(`✅ Loaded NPC with name label: ${config.name}`);
       } catch (error) {
         console.error(`❌ Failed to load NPC ${config.name}:`, error);
       }
     }
     
-    console.log(`Loaded ${this.npcs.length} NPCs successfully`);
+    console.log(`Loaded ${this.npcs.length} NPCs successfully with name labels`);
+  }
+
+  // Getter to access the NPC system for other tasks
+  public getNPCSystem(): NPCSystem {
+    return this.npcSystem;
   }
 
   private createMovementDataForNPC(npc: THREE.Group, index: number): NPCMovementData {
