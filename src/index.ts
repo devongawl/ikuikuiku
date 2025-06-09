@@ -31,6 +31,17 @@ class RelationshipStoryGame {
   private cameraLookAtLerpFactor: number = 0.08; // Separate factor for look-at smoothing
   private currentLookAtTarget: THREE.Vector3 = new THREE.Vector3();
   private debugPanel: HTMLDivElement | null = null;
+  
+  // Camera locking for cinematic sequences
+  private cameraLocked: boolean = false;
+  private cameraLockTarget: THREE.Group | null = null;
+  private cameraLockZoom: number = 1.0;
+  private cameraLockTimeout: number | null = null;
+  private cameraTransitioning: boolean = false;
+  private cameraTransitionDuration: number = 2.0; // 2 seconds for smooth transition
+  private cameraTransitionTimer: number = 0;
+  private cameraTransitionStartPos: THREE.Vector3 = new THREE.Vector3();
+  private cameraTransitionStartLookAt: THREE.Vector3 = new THREE.Vector3();
 
   constructor() {
     // Initialize Three.js core
@@ -120,7 +131,7 @@ class RelationshipStoryGame {
       
       // Follow character with camera when moving
       if (event.detail.memory) {
-        this.smoothCameraFollow();
+        this.smoothCameraFollow(0.016); // Pass approximate frame time
         
         // Check if this is an exit door
         const memory = event.detail.memory as Memory;
@@ -164,6 +175,41 @@ class RelationshipStoryGame {
     window.addEventListener('storyNarration', ((event: CustomEvent) => {
       console.log('Story narration:', event.detail);
       this.dialogueSystem.show(event.detail.message, 4000);
+    }) as EventListener);
+
+    // Listen for camera lock events
+    window.addEventListener('lockCameraOnTarget', ((event: CustomEvent) => {
+      console.log('🎥 Camera lock requested:', event.detail);
+      console.log('🎥 Target object:', event.detail.target);
+      console.log('🎥 Target position:', event.detail.target?.position);
+      this.lockCameraOnTarget(event.detail.target, event.detail.zoomLevel, event.detail.duration);
+    }) as EventListener);
+
+    // Listen for camera release events
+    window.addEventListener('releaseCameraLock', (() => {
+      console.log('🎥 Camera lock release requested');
+      this.releaseCameraLock();
+    }) as EventListener);
+
+    // Listen for force move to position events (for desk sitting)
+    window.addEventListener('forceMoveToPosition', ((event: CustomEvent) => {
+      console.log('🚶 Force move to position:', event.detail);
+      const { worldX, worldZ } = event.detail;
+      // Convert world position to grid position
+      const gridX = Math.round(worldX / 2);
+      const gridZ = Math.round(worldZ / 2);
+      this.characterController.setPosition(worldX, 0, worldZ);
+    }) as EventListener);
+
+    // Listen for interaction prompt events
+    window.addEventListener('showInteractionPrompt', ((event: CustomEvent) => {
+      console.log('💬 Show interaction prompt:', event.detail);
+      this.dialogueSystem.show(event.detail.message, null); // Stay until hidden
+    }) as EventListener);
+
+    window.addEventListener('hideInteractionPrompt', (() => {
+      console.log('💬 Hide interaction prompt');
+      this.dialogueSystem.hide();
     }) as EventListener);
 
     // Mouse wheel zoom
@@ -225,6 +271,12 @@ class RelationshipStoryGame {
   }
 
   private async loadScene(sceneName: string): Promise<void> {
+    // Release any camera lock when changing scenes
+    if (this.cameraLocked) {
+      console.log('🎥 Releasing camera lock due to scene change');
+      this.releaseCameraLock();
+    }
+    
     const scene = await this.sceneManager.loadScene(sceneName);
     if (scene) {
       // Set collision manager for the scene BEFORE doing anything else
@@ -328,8 +380,72 @@ class RelationshipStoryGame {
     this.currentLookAtTarget.copy(characterPos);
   }
 
-  private smoothCameraFollow(): void {
-    // Use smooth grid position for camera movement (ignores hop animation)
+  private smoothCameraFollow(deltaTime: number): void {
+    
+    // Handle camera transition to lock target
+    if (this.cameraTransitioning && this.cameraLockTarget) {
+      this.cameraTransitionTimer += deltaTime;
+      const progress = Math.min(1, this.cameraTransitionTimer / this.cameraTransitionDuration);
+      
+      // Smooth step for more natural transition
+      const smoothProgress = progress * progress * (3 - 2 * progress);
+      
+      const targetPos = this.cameraLockTarget.position;
+      
+      // Calculate final camera position relative to lock target with zoom
+      const finalCameraPos = new THREE.Vector3(
+        targetPos.x + (this.cameraDistance / this.cameraLockZoom), 
+        this.cameraHeight, 
+        targetPos.z + (this.cameraDistance / this.cameraLockZoom)
+      );
+      
+      // Debug logging every 0.5 seconds
+      if (Math.floor(this.cameraTransitionTimer * 2) !== Math.floor((this.cameraTransitionTimer - deltaTime) * 2)) {
+        console.log('🎥 Camera transition progress:', Math.round(progress * 100) + '%');
+        console.log('🎥 Target position:', targetPos);
+        console.log('🎥 Final camera position:', finalCameraPos);
+        console.log('🎥 Camera zoom:', this.cameraLockZoom);
+        console.log('🎥 Camera distance:', this.cameraDistance);
+      }
+      
+      // Interpolate camera position from start to final
+      this.camera.position.lerpVectors(this.cameraTransitionStartPos, finalCameraPos, smoothProgress);
+      
+      // Interpolate look-at target
+      this.currentLookAtTarget.lerpVectors(this.cameraTransitionStartLookAt, targetPos, smoothProgress);
+      this.camera.lookAt(this.currentLookAtTarget);
+      
+      // Check if transition is complete
+      if (progress >= 1) {
+        this.cameraTransitioning = false;
+        console.log('🎥 Camera transition to target complete');
+      }
+      
+      return;
+    }
+    
+    // If camera is locked (and not transitioning), follow the lock target
+    if (this.cameraLocked && this.cameraLockTarget) {
+      const targetPos = this.cameraLockTarget.position;
+      
+      // Calculate camera position relative to lock target with zoom
+      const targetCameraPos = new THREE.Vector3(
+        targetPos.x + (this.cameraDistance / this.cameraLockZoom), 
+        this.cameraHeight, 
+        targetPos.z + (this.cameraDistance / this.cameraLockZoom)
+      );
+      
+      // Smooth lerp for camera position (faster for cinematic effect)
+      this.camera.position.lerp(targetCameraPos, this.cameraLerpFactor * 2);
+      
+      // Smooth look-at interpolation toward lock target
+      this.currentLookAtTarget.lerp(targetPos, this.cameraLookAtLerpFactor * 2);
+      this.camera.lookAt(this.currentLookAtTarget);
+      
+      return;
+    }
+    
+    // Normal camera following behavior
     const characterPos = this.characterController.getSmoothPosition();
     
     // Smoother camera positioning for grid movement
@@ -345,6 +461,69 @@ class RelationshipStoryGame {
     // Smooth look-at interpolation
     this.currentLookAtTarget.lerp(characterPos, this.cameraLookAtLerpFactor);
     this.camera.lookAt(this.currentLookAtTarget);
+  }
+
+  private lockCameraOnTarget(target: THREE.Group, zoomLevel: number = 1.0, duration: number = 5000): void {
+    console.log('🎥 Locking camera on target with zoom:', zoomLevel, 'duration:', duration);
+    console.log('🎥 Target is valid:', !!target);
+    console.log('🎥 Target position:', target?.position);
+    console.log('🎥 Current camera position:', this.camera.position);
+    console.log('🎥 Current camera distance:', this.cameraDistance);
+    
+    if (!target) {
+      console.error('🎥 Cannot lock camera - target is null/undefined');
+      return;
+    }
+    
+    // Store current camera position and look-at for smooth transition
+    this.cameraTransitionStartPos.copy(this.camera.position);
+    this.cameraTransitionStartLookAt.copy(this.currentLookAtTarget);
+    
+    console.log('🎥 Transition start position:', this.cameraTransitionStartPos);
+    console.log('🎥 Transition start look-at:', this.cameraTransitionStartLookAt);
+    
+    // Set up the lock
+    this.cameraLocked = true;
+    this.cameraLockTarget = target;
+    this.cameraLockZoom = zoomLevel;
+    
+    // Start smooth transition
+    this.cameraTransitioning = true;
+    this.cameraTransitionTimer = 0;
+    
+    console.log('🎥 Camera transition started');
+    
+    // Clear any existing timeout
+    if (this.cameraLockTimeout) {
+      clearTimeout(this.cameraLockTimeout);
+      this.cameraLockTimeout = null;
+    }
+
+    // Set timeout to automatically release lock (only if duration > 0)
+    if (duration > 0) {
+      this.cameraLockTimeout = setTimeout(() => {
+        this.releaseCameraLock();
+      }, duration) as any;
+    } else {
+      console.log('🎥 Camera locked permanently until manual release');
+    }
+  }
+
+  private releaseCameraLock(): void {
+    console.log('🎥 Releasing camera lock');
+    this.cameraLocked = false;
+    this.cameraLockTarget = null;
+    this.cameraLockZoom = 1.0;
+    
+    // Stop any ongoing transition
+    this.cameraTransitioning = false;
+    this.cameraTransitionTimer = 0;
+
+    // Clear timeout if it exists
+    if (this.cameraLockTimeout) {
+      clearTimeout(this.cameraLockTimeout);
+      this.cameraLockTimeout = null;
+    }
   }
 
   private showSceneTitle(name: string, description: string): void {
@@ -446,7 +625,7 @@ class RelationshipStoryGame {
     this.characterController.update(deltaTime, this.camera);
 
     // Camera follows character smoothly
-    this.smoothCameraFollow();
+    this.smoothCameraFollow(deltaTime);
 
     // Update debug panel
     this.updateDebugPanel();

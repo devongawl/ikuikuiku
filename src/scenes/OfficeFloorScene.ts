@@ -17,6 +17,7 @@ export class OfficeFloorScene extends Scene {
   private interactiveDesks: THREE.Group[] = []; // All desks that can be interacted with
   private playerSittingAt: THREE.Group | null = null; // Track which desk player is sitting at
   private targetDeskHighlight: THREE.Mesh | null = null; // Visual highlight for target desk
+  private storyCompleted: boolean = false; // Track if the main story sequence is complete
 
   constructor() {
     super('office-floor', 'The Office - September 15th');
@@ -371,8 +372,15 @@ export class OfficeFloorScene extends Scene {
       );
       
       if (isAdjacent) {
-        this.showDeskInteractionPrompt(desk);
-        return;
+        // For target desk, sit automatically without spacebar
+        if (desk.userData.deskType === 'target' && !this.playerSittingAt) {
+          console.log('🎯 Auto-sitting at target desk - no spacebar required');
+          this.sitAtDesk(desk);
+          return;
+        } else {
+          this.showDeskInteractionPrompt(desk);
+          return;
+        }
       }
     }
     
@@ -438,14 +446,19 @@ export class OfficeFloorScene extends Scene {
     // Show sitting message
     const deskType = desk.userData.deskType;
     if (deskType === 'target') {
+      console.log('🎯 Player sat at TARGET DESK - triggering cinematic sequence');
+      
       window.dispatchEvent(new CustomEvent('storyNarration', {
         detail: { message: "Ah, my favorite desk! I love this view of the city. Time to get some work done..." }
       }));
       
-      // Trigger Devon to move to adjacent desk after a short delay
-      setTimeout(() => {
-        this.triggerDevonMovement();
-      }, 2000);
+      // Lock player movement for cinematic sequence
+      window.dispatchEvent(new CustomEvent('lockPlayerMovement', {
+        detail: { locked: true }
+      }));
+      
+      // Trigger Devon to move to adjacent desk immediately (no delay)
+      this.triggerDevonMovement();
     } else {
       window.dispatchEvent(new CustomEvent('storyNarration', {
         detail: { message: "Taking a seat at this desk. Nice view from here too." }
@@ -454,19 +467,138 @@ export class OfficeFloorScene extends Scene {
   }
 
   private triggerDevonMovement(): void {
-    // This will be implemented in Task 5 - for now just log
-    console.log('🎯 Target desk occupied! Devon should move to adjacent desk...');
+    console.log('🎯 Target desk occupied! Triggering Devon to move to adjacent desk...');
+    console.log('🎯 NPCs array length:', this.npcs.length);
+    console.log('🎯 Movement data array length:', this.npcMovementData.length);
+    
+    // Find Devon (he's the first NPC, index 0)
+    const devon = this.npcs[0];
+    const devonMovementData = this.npcMovementData[0];
+    
+    if (!devon || !devonMovementData) {
+      console.error('❌ Could not find Devon NPC for movement trigger');
+      // Unlock player movement if Devon not found
+      window.dispatchEvent(new CustomEvent('lockPlayerMovement', {
+        detail: { locked: false }
+      }));
+      return;
+    }
+    
+    // Lock camera on Devon for cinematic effect - permanent until scene change
+    console.log('🎯 Dispatching lockCameraOnTarget event for Devon:', devon);
+    console.log('🎯 Devon position:', devon.position);
+    console.log('🎯 Devon name:', devon.name);
+    
+    window.dispatchEvent(new CustomEvent('lockCameraOnTarget', {
+      detail: { 
+        target: devon,
+        zoomLevel: 1.5, // Zoom in closer
+        duration: 0 // Permanent lock until manual release
+      }
+    }));
     
     window.dispatchEvent(new CustomEvent('storyNarration', {
       detail: { message: "I notice Devon looking around for a good spot to sit..." }
     }));
+    
+    // Create a special movement sequence for Devon to reach the adjacent desk
+    const devonTargetDesk = new THREE.Vector3(-2, 0, -7); // Devon's target desk position
+    const chairPosition = new THREE.Vector3(-2, 0, -6); // Behind the desk (chair position)
+    
+    // Replace Devon's current waypoints with a direct path to the desk
+    devonMovementData.waypoints = [
+      devon.position.clone(), // Current position
+      new THREE.Vector3(-2, 0, -5), // Intermediate position (step forward)
+      chairPosition // Final chair position behind desk
+    ];
+    devonMovementData.currentWaypointIndex = 1; // Start moving to next waypoint
+    devonMovementData.isMoving = true;
+    devonMovementData.currentWaitTime = 0;
+    devonMovementData.moveSpeed = 1.5; // Much faster movement for cinematic effect
+    
+    // Add narrative progression with faster timing
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('storyNarration', {
+        detail: { message: "Devon gets up and walks over to the desk next to mine..." }
+      }));
+    }, 800);
+    
+    // Final narrative when he reaches the desk
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('storyNarration', {
+        detail: { message: "Perfect timing! Devon settles in at the desk right next to mine. This is how we first became desk neighbors..." }
+      }));
+      
+      // Update story phase to reflect this key moment
+      this.storyPhase = 'meeting';
+      
+      // Keep camera locked on Devon - don't release it
+      
+      // Trigger scene change after a moment to let the narrative sink in
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('storyNarration', {
+          detail: { message: "Little did I know, this moment would change everything..." }
+        }));
+        
+        // Trigger scene transition after final narration
+        setTimeout(() => {
+          // For now, we'll unlock movement. In the future, this could trigger a scene change
+          // Example: window.dispatchEvent(new CustomEvent('changeScene', { detail: { sceneName: 'next-scene' } }));
+          window.dispatchEvent(new CustomEvent('storyNarration', {
+            detail: { message: "And that's how our story began..." }
+          }));
+          
+          // Mark story as completed
+          this.storyCompleted = true;
+          
+          // Keep both characters locked at their desks - they've found their places
+          console.log('🎯 Story sequence complete - both characters remain at their desks');
+          
+          // Stop Devon's normal movement pattern - he's now settled at his desk
+          if (this.npcMovementData[0]) {
+            this.npcMovementData[0].isMoving = false;
+            this.npcMovementData[0].waypoints = []; // Clear waypoints so he stays put
+            console.log('✅ Devon locked at his new desk position');
+          }
+          
+          // For now, unlock after the complete story to allow user to explore
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('lockPlayerMovement', {
+              detail: { locked: false }
+            }));
+          }, 3000);
+          
+        }, 3000);
+      }, 2000);
+      
+    }, 5000);
+    
+    console.log('✅ Devon cinematic movement sequence initiated');
   }
 
   private standUpFromDesk(): void {
     if (!this.playerSittingAt) return;
     
+    // Prevent standing up if the story sequence is complete
+    if (this.storyCompleted) {
+      console.log('🔒 Cannot stand up - story sequence complete, characters locked at desks');
+      window.dispatchEvent(new CustomEvent('storyNarration', {
+        detail: { message: "This is where I belong now... right next to Devon." }
+      }));
+      return;
+    }
+    
     console.log('Player standing up from desk');
+    const wasTargetDesk = this.playerSittingAt.userData.deskType === 'target';
     this.playerSittingAt = null;
+    
+    // Unlock player movement and camera if standing up from target desk
+    if (wasTargetDesk) {
+      window.dispatchEvent(new CustomEvent('lockPlayerMovement', {
+        detail: { locked: false }
+      }));
+      window.dispatchEvent(new CustomEvent('releaseCameraLock'));
+    }
     
     window.dispatchEvent(new CustomEvent('storyNarration', {
       detail: { message: "Standing up from the desk." }
@@ -777,16 +909,16 @@ export class OfficeFloorScene extends Scene {
       this.checkDeskInteraction(position.x, position.z);
     };
     
-    // Handle SPACE key for sitting at desks
+    // Handle SPACE key for sitting at desks (except target desk which auto-sits)
     const handleKeyPress = (event: KeyboardEvent) => {
       if (event.code === 'Space' && !this.playerSittingAt) {
         const currentDeskNearby = this.getCurrentNearbyDesk();
-        if (currentDeskNearby) {
+        if (currentDeskNearby && currentDeskNearby.userData.deskType !== 'target') {
           event.preventDefault();
           this.sitAtDesk(currentDeskNearby);
         }
       } else if (event.code === 'Escape' && this.playerSittingAt) {
-        // Allow standing up with Escape key
+        // Allow standing up with Escape key (unless story is complete)
         event.preventDefault();
         this.standUpFromDesk();
       }
@@ -856,7 +988,9 @@ export class OfficeFloorScene extends Scene {
 
     // Register key desks along back wall
     registerCollision('her-desk', -6, -7, 1.5, 1);
-    registerCollision('target-desk', 6, -7, 1.5, 1);
+    registerCollision('devon-desk', -2, -7, 1.5, 1);
+    registerCollision('center-right-desk', 2, -7, 1.5, 1);
+    registerCollision('far-right-desk', 6, -7, 1.5, 1);
 
     // Register filing cabinets
     registerCollision('filing-cabinets-left', -8, -4, 1, 0.6);
@@ -987,29 +1121,29 @@ export class OfficeFloorScene extends Scene {
   private async loadOfficeNPCs(): Promise<void> {
     console.log('Loading office NPCs with name labels...');
     
-    // Create NPCs using the NPCSystem with proper names
+    // Create NPCs using the NPCSystem with proper names - spread around the office
     const npcConfigs = [
       {
         name: 'Devon',
-        position: new THREE.Vector3(-2, 0, -6.2), // Behind center-left desk
+        position: new THREE.Vector3(-6, 0, 0), // Coffee/break area (left side center)
         modelType: 'basic' as const,
         description: 'Senior Developer - focused on his code'
       },
       {
         name: 'Lotte', 
-        position: new THREE.Vector3(2, 0, -6.2), // Behind center-right desk
+        position: new THREE.Vector3(0, 0, -4), // Center of office
         modelType: 'advanced' as const,
         description: 'Project Manager - reviewing reports'
       },
       {
         name: 'Joonatan',
-        position: new THREE.Vector3(-7, 0, 2), // Near filing cabinets on left side
+        position: new THREE.Vector3(-7, 0, -2), // Near left filing cabinets
         modelType: 'basic' as const,
         description: 'HR Representative - organizing files'
       },
       {
         name: 'Mark',
-        position: new THREE.Vector3(4, 0, 8), // Near windows, looking outside
+        position: new THREE.Vector3(4, 0, 6), // Near windows, right side
         modelType: 'advanced' as const,
         description: 'Designer - taking a break by the window'
       }
@@ -1045,62 +1179,65 @@ export class OfficeFloorScene extends Scene {
   private createMovementDataForNPC(npc: THREE.Group, index: number): NPCMovementData {
     const waypoints: THREE.Vector3[] = [];
     
-    // Define different movement patterns for each NPC based on their role
+    // Define different movement patterns for each NPC based on their role and starting position
     switch (index) {
-      case 0: // Dave (Developer) - moves between his desk and coffee area
+      case 0: // Devon (Developer) - starts at coffee area, moves between break area and desk area
         waypoints.push(
-          new THREE.Vector3(-2, 0, -6.2), // His desk
-          new THREE.Vector3(-2, 0, -4),    // Step away from desk
+          new THREE.Vector3(-6, 0, 0),     // Coffee/break area (starting position)
           new THREE.Vector3(-4, 0, -2),    // Move toward center
-          new THREE.Vector3(-6, 0, 0),     // Coffee/break area
+          new THREE.Vector3(-2, 0, -4),    // Near desk area
+          new THREE.Vector3(-2, 0, -6.2),  // His future desk position
           new THREE.Vector3(-4, 0, -2),    // Return path
-          new THREE.Vector3(-2, 0, -4)     // Back to desk area
+          new THREE.Vector3(-6, 0, 2)      // Back toward break area
         );
         break;
         
-      case 1: // Sarah (Project Manager) - moves around checking on people
+      case 1: // Lotte (Project Manager) - starts center, moves around checking on people
         waypoints.push(
-          new THREE.Vector3(2, 0, -6.2),   // Her desk
-          new THREE.Vector3(0, 0, -4),     // Center of office
-          new THREE.Vector3(-2, 0, -4),    // Check on Dave
+          new THREE.Vector3(0, 0, -4),     // Center of office (starting position)
+          new THREE.Vector3(-2, 0, -4),    // Check left side
+          new THREE.Vector3(-4, 0, -2),    // Visit Devon area
           new THREE.Vector3(0, 0, -2),     // Center again
-          new THREE.Vector3(4, 0, 0),      // Check right side
-          new THREE.Vector3(2, 0, -2),     // Return path
-          new THREE.Vector3(2, 0, -4)      // Back toward desk
+          new THREE.Vector3(4, 0, -2),     // Check right side
+          new THREE.Vector3(2, 0, -4),     // Near right desks
+          new THREE.Vector3(2, 0, -6.2)    // Her desk area
         );
         break;
         
-      case 2: // Mike (HR) - moves between filing cabinets and around office
+      case 2: // Joonatan (HR) - starts at filing cabinets, moves between files and office
         waypoints.push(
-          new THREE.Vector3(-7, 0, 2),     // Starting position
-          new THREE.Vector3(-7, 0, -2),    // Other filing cabinet
-          new THREE.Vector3(-4, 0, -2),    // Move into office
+          new THREE.Vector3(-7, 0, -2),    // Left filing cabinet (starting position)
+          new THREE.Vector3(-7, 0, 2),     // Other filing cabinet
+          new THREE.Vector3(-4, 0, 2),     // Move into office
           new THREE.Vector3(-2, 0, 0),     // Center-left area
-          new THREE.Vector3(-4, 0, 2),     // Back toward filing area
+          new THREE.Vector3(0, 0, 2),      // Center office
+          new THREE.Vector3(-4, 0, 0),     // Return path
           new THREE.Vector3(-7, 0, 0)      // Return to filing area
         );
         break;
         
-      case 3: // Emma (Designer) - moves around looking at different areas
+      case 3: // Mark (Designer) - starts near windows, moves around for inspiration
         waypoints.push(
-          new THREE.Vector3(4, 0, 8),      // By windows
-          new THREE.Vector3(2, 0, 6),      // Step back from windows
-          new THREE.Vector3(0, 0, 4),      // Center office
+          new THREE.Vector3(4, 0, 6),      // Near windows (starting position)
+          new THREE.Vector3(2, 0, 4),      // Step back from windows
+          new THREE.Vector3(0, 0, 2),      // Center office
           new THREE.Vector3(-2, 0, 2),     // Left side
-          new THREE.Vector3(0, 0, 0),      // Center
-          new THREE.Vector3(2, 0, 2),      // Right side
-          new THREE.Vector3(4, 0, 4)       // Back toward windows
+          new THREE.Vector3(0, 0, 0),      // Center again
+          new THREE.Vector3(4, 0, 2),      // Right side
+          new THREE.Vector3(6, 0, 4)       // Back toward windows area
         );
         break;
     }
+    
+    const waitTime = 0.5 + Math.random() * 1; // Shorter wait time between 0.5-1.5 seconds
     
     return {
       npc: npc,
       waypoints: waypoints,
       currentWaypointIndex: 0,
       moveSpeed: 0.5 + Math.random() * 0.5, // Random speed between 0.5 and 1.0
-      waitTime: 2 + Math.random() * 3, // Random wait time between 2-5 seconds
-      currentWaitTime: 0,
+      waitTime: waitTime,
+      currentWaitTime: waitTime, // Start ready to move immediately
       isMoving: false,
       name: npc.name
     };

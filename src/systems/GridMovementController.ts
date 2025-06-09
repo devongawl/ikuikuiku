@@ -54,8 +54,12 @@ export class GridMovementController {
   // Collision manager
   private collisionManager: CollisionManager | null = null;
 
+  // Movement locking for cinematic sequences
+  private movementLocked: boolean = false;
+
   constructor() {
     this.setupControls();
+    this.setupEventListeners();
   }
 
   setCharacter(character: THREE.Group): void {
@@ -93,6 +97,12 @@ export class GridMovementController {
       if (this.keyPressed.get(key)) return;
       this.keyPressed.set(key, true);
       
+      // Check if movement is locked
+      if (this.movementLocked) {
+        console.log('Movement locked - ignoring input');
+        return;
+      }
+      
       // Debug: check if collision manager is set
       if (!this.collisionManager) {
         console.warn('CollisionManager not set! Movement will not be blocked.');
@@ -114,6 +124,19 @@ export class GridMovementController {
       const key = e.key.toLowerCase();
       this.keyPressed.set(key, false);
     });
+  }
+
+  private setupEventListeners(): void {
+    // Listen for movement lock events
+    window.addEventListener('lockPlayerMovement', ((event: CustomEvent) => {
+      console.log('🔒 GridMovementController received lockPlayerMovement:', event.detail.locked);
+      this.movementLocked = event.detail.locked;
+      
+      // Clear movement queue when locking
+      if (this.movementLocked) {
+        this.movementQueue = [];
+      }
+    }) as EventListener);
   }
 
   private canQueueMove(): boolean {
