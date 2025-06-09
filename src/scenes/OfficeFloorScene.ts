@@ -14,6 +14,9 @@ export class OfficeFloorScene extends Scene {
   private npcSystem: NPCSystem;
   private npcs: THREE.Group[] = []; // Array to hold all NPCs (keeping for backwards compatibility)
   private npcMovementData: NPCMovementData[] = []; // Track movement state for each NPC
+  private interactiveDesks: THREE.Group[] = []; // All desks that can be interacted with
+  private playerSittingAt: THREE.Group | null = null; // Track which desk player is sitting at
+  private targetDeskHighlight: THREE.Mesh | null = null; // Visual highlight for target desk
 
   constructor() {
     super('office-floor', 'The Office - September 15th');
@@ -289,32 +292,201 @@ export class OfficeFloorScene extends Scene {
 
   private createDeskArea(): void {
     // Position desks along the back wall (facing toward the windows)
-    // Her desk (left side of back wall)
+    // Her desk (left side of back wall) - NOW THE TARGET DESK!
     this.herDesk = this.createDesk(true); // personalized
     this.herDesk.position.set(-6, 0, -7);
     this.herDesk.rotation.y = 0; // Facing toward windows
     this.herDesk.name = 'her-desk';
+    this.herDesk.userData.isInteractive = true;
+    this.herDesk.userData.deskType = 'target'; // This is now the target desk
     this.add(this.herDesk);
+    this.interactiveDesks.push(this.herDesk);
 
-    // The target desk (right side of back wall)
-    this.targetDesk = this.createDesk(false); // empty/new
-    this.targetDesk.position.set(6, 0, -7);
-    this.targetDesk.rotation.y = 0; // Facing toward windows
-    this.targetDesk.name = 'target-desk';
-    this.add(this.targetDesk);
+    // Set this as the target desk (her desk is the special one)
+    this.targetDesk = this.herDesk;
+    
+    // Add special highlighting to the target desk (her desk)
+    this.addTargetDeskHighlight();
+
+    // The desk where Devon will sit (right side of back wall) - adjacent to target
+    const devonDesk = this.createDesk(false); // empty/new
+    devonDesk.position.set(-2, 0, -7); // Adjacent to her desk
+    devonDesk.rotation.y = 0; // Facing toward windows
+    devonDesk.name = 'devon-desk';
+    devonDesk.userData.isInteractive = true;
+    devonDesk.userData.deskType = 'devon-target'; // Special desk for Devon
+    this.add(devonDesk);
+    this.interactiveDesks.push(devonDesk);
 
     // Additional desks along the back wall
     const additionalDeskPositions = [
-      { x: -2, z: -7 }, // Center-left
-      { x: 2, z: -7 }   // Center-right
+      { x: 2, z: -7, name: 'center-right-desk' },   // Center-right
+      { x: 6, z: -7, name: 'far-right-desk' }       // Far right
     ];
 
     additionalDeskPositions.forEach(pos => {
       const desk = this.createDesk(false);
       desk.position.set(pos.x, 0, pos.z);
       desk.rotation.y = 0; // Facing toward windows
+      desk.name = pos.name;
+      desk.userData.isInteractive = true;
+      desk.userData.deskType = 'regular';
       this.add(desk);
+      this.interactiveDesks.push(desk);
     });
+
+    console.log(`Created ${this.interactiveDesks.length} interactive desks`);
+  }
+
+  private addTargetDeskHighlight(): void {
+    if (!this.targetDesk) return;
+
+    // Create a glowing ring around the target desk
+    const ringGeometry = new THREE.RingGeometry(1.8, 2.2, 32);
+    const ringMaterial = new THREE.MeshBasicMaterial({ 
+      color: 0x00FF88,
+      transparent: true,
+      opacity: 0.6,
+      side: THREE.DoubleSide
+    });
+    
+    this.targetDeskHighlight = new THREE.Mesh(ringGeometry, ringMaterial);
+    this.targetDeskHighlight.position.set(-6, 0.15, -7); // Now at her desk (leftmost), raised to avoid z-fighting
+    this.targetDeskHighlight.rotation.x = -Math.PI / 2; // Lay flat on ground
+    this.add(this.targetDeskHighlight);
+    
+    console.log('Added target desk highlight ring at her desk (leftmost)');
+  }
+
+  private checkDeskInteraction(gridX: number, gridZ: number): void {
+    // Check if player is adjacent to any interactive desk
+    for (const desk of this.interactiveDesks) {
+      const deskGridX = Math.round(desk.position.x / 2);
+      const deskGridZ = Math.round(desk.position.z / 2);
+      
+      // Check if player is adjacent (1 grid cell away) from desk
+      const isAdjacent = (
+        (Math.abs(gridX - deskGridX) === 1 && gridZ === deskGridZ) ||
+        (gridX === deskGridX && Math.abs(gridZ - deskGridZ) === 1)
+      );
+      
+      if (isAdjacent) {
+        this.showDeskInteractionPrompt(desk);
+        return;
+      }
+    }
+    
+    // No desk nearby, hide interaction prompt
+    this.hideDeskInteractionPrompt();
+  }
+
+  private showDeskInteractionPrompt(desk: THREE.Group): void {
+    if (this.playerSittingAt) return; // Already sitting
+    
+    const deskType = desk.userData.deskType;
+    let message = '';
+    
+    switch (deskType) {
+      case 'target':
+        message = 'Press SPACE to sit at my desk - my favorite spot with the perfect view!';
+        break;
+      case 'devon-target':
+        message = 'This empty desk next to mine has a great view too.';
+        break;
+      case 'occupied':
+        message = 'This is my usual desk - feels good to be back.';
+        break;
+      default:
+        message = 'Press SPACE to sit at this desk.';
+        break;
+    }
+    
+    // Dispatch interaction prompt event
+    window.dispatchEvent(new CustomEvent('showInteractionPrompt', {
+      detail: { message, desk }
+    }));
+  }
+
+  private hideDeskInteractionPrompt(): void {
+    window.dispatchEvent(new CustomEvent('hideInteractionPrompt'));
+  }
+
+  private async sitAtDesk(desk: THREE.Group): Promise<void> {
+    if (this.playerSittingAt) return; // Already sitting
+    
+    console.log(`Player sitting at desk: ${desk.name}`);
+    
+    // Calculate chair position (behind the desk)
+    const chairX = desk.position.x;
+    const chairZ = desk.position.z + 1; // 1 unit behind desk
+    
+    // Move player to chair position
+    window.dispatchEvent(new CustomEvent('forceMoveToPosition', {
+      detail: { 
+        worldX: chairX, 
+        worldZ: chairZ,
+        animate: true 
+      }
+    }));
+    
+    // Set sitting state
+    this.playerSittingAt = desk;
+    
+    // Hide interaction prompt
+    this.hideDeskInteractionPrompt();
+    
+    // Show sitting message
+    const deskType = desk.userData.deskType;
+    if (deskType === 'target') {
+      window.dispatchEvent(new CustomEvent('storyNarration', {
+        detail: { message: "Ah, my favorite desk! I love this view of the city. Time to get some work done..." }
+      }));
+      
+      // Trigger Devon to move to adjacent desk after a short delay
+      setTimeout(() => {
+        this.triggerDevonMovement();
+      }, 2000);
+    } else {
+      window.dispatchEvent(new CustomEvent('storyNarration', {
+        detail: { message: "Taking a seat at this desk. Nice view from here too." }
+      }));
+    }
+  }
+
+  private triggerDevonMovement(): void {
+    // This will be implemented in Task 5 - for now just log
+    console.log('🎯 Target desk occupied! Devon should move to adjacent desk...');
+    
+    window.dispatchEvent(new CustomEvent('storyNarration', {
+      detail: { message: "I notice Devon looking around for a good spot to sit..." }
+    }));
+  }
+
+  private standUpFromDesk(): void {
+    if (!this.playerSittingAt) return;
+    
+    console.log('Player standing up from desk');
+    this.playerSittingAt = null;
+    
+    window.dispatchEvent(new CustomEvent('storyNarration', {
+      detail: { message: "Standing up from the desk." }
+    }));
+  }
+
+  private getCurrentNearbyDesk(): THREE.Group | null {
+    // Get player's current grid position - we'll need to get this from the movement controller
+    // For now, we'll check all desks and see if any interaction prompt is currently active
+    for (const desk of this.interactiveDesks) {
+      const deskGridX = Math.round(desk.position.x / 2);
+      const deskGridZ = Math.round(desk.position.z / 2);
+      
+      // This is a simplified check - in a real implementation we'd get the actual player position
+      // For now, we'll return the first interactive desk we find
+      // TODO: Get actual player grid position from the movement controller
+    }
+    
+    // Temporary: just return target desk for testing
+    return this.targetDesk;
   }
 
   private createMeetingArea(): void {
@@ -600,10 +772,30 @@ export class OfficeFloorScene extends Scene {
       
       // Check if character reached her desk area
       this.checkDeskReached(position.x, position.z);
+      
+      // Check for desk interactions
+      this.checkDeskInteraction(position.x, position.z);
+    };
+    
+    // Handle SPACE key for sitting at desks
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (event.code === 'Space' && !this.playerSittingAt) {
+        const currentDeskNearby = this.getCurrentNearbyDesk();
+        if (currentDeskNearby) {
+          event.preventDefault();
+          this.sitAtDesk(currentDeskNearby);
+        }
+      } else if (event.code === 'Escape' && this.playerSittingAt) {
+        // Allow standing up with Escape key
+        event.preventDefault();
+        this.standUpFromDesk();
+      }
     };
     
     window.addEventListener('gridMoveComplete', handleGridMovement as EventListener);
+    window.addEventListener('keydown', handleKeyPress as EventListener);
     (this as any).gridMovementListener = handleGridMovement;
+    (this as any).keyPressListener = handleKeyPress;
   }
 
   private checkDeskReached(gridX: number, gridZ: number): void {
@@ -708,6 +900,11 @@ export class OfficeFloorScene extends Scene {
       window.removeEventListener('gridMoveComplete', (this as any).gridMovementListener);
       (this as any).gridMovementListener = null;
     }
+    
+    if ((this as any).keyPressListener) {
+      window.removeEventListener('keydown', (this as any).keyPressListener);
+      (this as any).keyPressListener = null;
+    }
   }
 
   update(deltaTime: number): void {
@@ -719,8 +916,22 @@ export class OfficeFloorScene extends Scene {
     // Update NPC movements
     this.updateNPCMovements(deltaTime);
     
+    // Update target desk highlight animation
+    this.updateTargetDeskHighlight(deltaTime);
+    
     // Update story elements based on current phase
     // Could add NPC animations here in the future
+  }
+
+  private updateTargetDeskHighlight(deltaTime: number): void {
+    if (!this.targetDeskHighlight) return;
+    
+    // Keep it simple - just a steady glow with very slow rotation
+    // No pulsing to avoid flickering
+    (this.targetDeskHighlight.material as THREE.MeshBasicMaterial).opacity = 0.6;
+    
+    // Very slow, subtle rotation
+    this.targetDeskHighlight.rotation.z += deltaTime * 0.05;
   }
 
   private updateNPCMovements(deltaTime: number): void {
