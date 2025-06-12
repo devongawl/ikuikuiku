@@ -556,25 +556,25 @@ export class ApartmentScene extends Scene {
     const malleY = 2.5; // Same height as other paintings
     const malleSize = { width: 1.2, height: 1.2 }; // Square format
     
-    // Malle 1 painting
+    // Malle 1 painting (now third)
     this.createPainting({
-      position: { x: -11.8, y: malleY, z: -1.5 }, // Closer to left wall for proper rotation
+      position: { x: -11.8, y: malleY, z: 1.5 }, // Rightmost
       size: malleSize,
       texture: 'assets/paintings/' + encodeURIComponent('malle 1.jpeg'),
       name: 'malle-1-painting'
     });
 
-    // Malle 2 painting  
+    // Malle 2 painting (middle, unchanged)
     this.createPainting({
-      position: { x: -11.8, y: malleY, z: 0 }, // Closer to left wall for proper rotation
+      position: { x: -11.8, y: malleY, z: 0 }, // Center
       size: malleSize,
       texture: 'assets/paintings/malle2.jpeg',
       name: 'malle-2-painting'
     });
 
-    // Malle 3 painting
+    // Malle 3 painting (now first)
     this.createPainting({
-      position: { x: -11.8, y: malleY, z: 1.5 }, // Closer to left wall for proper rotation
+      position: { x: -11.8, y: malleY, z: -1.5 }, // Leftmost
       size: malleSize,
       texture: 'assets/paintings/malle3.jpeg',
       name: 'malle-3-painting'

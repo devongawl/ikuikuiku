@@ -103,6 +103,32 @@ body {
   z-index: 100;
 }
 
+/* Screen filter overlay */
+#screen-filter-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1500;
+  background-color: transparent;
+}
+
+/* Ending modal */
+#ending-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  pointer-events: auto;
+}
+
 /* Scene title */
 .scene-title {
   position: fixed;

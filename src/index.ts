@@ -214,6 +214,18 @@ class RelationshipStoryGame {
 
     // Mouse wheel zoom
     window.addEventListener('wheel', (e) => this.handleWheel(e));
+
+    // Listen for screen filter events
+    window.addEventListener('applyScreenFilter', ((event: CustomEvent) => {
+      console.log('🎬 Screen filter requested:', event.detail);
+      this.applyScreenFilter(event.detail.type, event.detail.intensity, event.detail.duration);
+    }) as EventListener);
+
+    // Listen for modal events
+    window.addEventListener('showModal', ((event: CustomEvent) => {
+      console.log('📋 Modal requested:', event.detail);
+      this.showModal(event.detail.title, event.detail.message, event.detail.type, event.detail.persistent);
+    }) as EventListener);
   }
 
   private onWindowResize(): void {
@@ -582,6 +594,7 @@ class RelationshipStoryGame {
     });
     
     document.body.appendChild(this.debugPanel);
+    this.debugPanel.style.display = 'none';
   }
 
   private getSceneDisplayName(sceneName: string): string {
@@ -663,6 +676,119 @@ class RelationshipStoryGame {
   private toggleDebugPanel(): void {
     if (this.debugPanel) {
       this.debugPanel.style.display = this.debugPanel.style.display === 'none' ? 'block' : 'none';
+    }
+  }
+
+  private applyScreenFilter(type: string, intensity: number, duration: number): void {
+    // Create overlay element if it doesn't exist
+    let overlay = document.getElementById('screen-filter-overlay') as HTMLDivElement;
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'screen-filter-overlay';
+      overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 1500;
+        transition: background-color ${duration}ms ease-in-out;
+        background-color: transparent;
+      `;
+      document.body.appendChild(overlay);
+    }
+
+    // Apply the filter based on type
+    if (type === 'darken') {
+      const alpha = Math.min(intensity, 1.0);
+      overlay.style.backgroundColor = `rgba(0, 0, 0, ${alpha})`;
+    }
+  }
+
+  private showModal(title: string, message: string, type: string, persistent: boolean): void {
+    // Create modal container
+    const modal = document.createElement('div');
+    modal.id = 'ending-modal';
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      pointer-events: auto;
+      opacity: 0;
+      transition: opacity 1s ease-in-out;
+    `;
+
+    // Create modal content
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+      background: linear-gradient(135deg, #FFB6C1, #FFC0CB, #FFCCCB);
+      border: 4px solid #FF69B4;
+      border-radius: 20px;
+      padding: 40px 60px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      max-width: 600px;
+      min-width: 400px;
+      font-family: 'Press Start 2P', cursive;
+    `;
+
+    // Add title
+    const titleElement = document.createElement('h2');
+    titleElement.style.cssText = `
+      margin: 0 0 30px 0;
+      font-size: 24px;
+      color: #8B0000;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+      line-height: 1.4;
+    `;
+    titleElement.textContent = title;
+
+    // Add message
+    const messageElement = document.createElement('p');
+    messageElement.style.cssText = `
+      margin: 0;
+      font-size: 18px;
+      color: #8B0000;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+      line-height: 1.5;
+    `;
+    messageElement.textContent = message;
+
+    // Add heart decoration
+    const heartDecoration = document.createElement('div');
+    heartDecoration.style.cssText = `
+      margin-top: 30px;
+      font-size: 32px;
+      color: #FF1493;
+    `;
+    heartDecoration.textContent = '💕';
+
+    modalContent.appendChild(titleElement);
+    modalContent.appendChild(messageElement);
+    modalContent.appendChild(heartDecoration);
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+
+    // Fade in the modal
+    setTimeout(() => {
+      modal.style.opacity = '1';
+    }, 100);
+
+    // If not persistent, add click to close functionality
+    if (!persistent) {
+      modal.addEventListener('click', () => {
+        modal.style.opacity = '0';
+        setTimeout(() => {
+          document.body.removeChild(modal);
+        }, 1000);
+      });
     }
   }
 }

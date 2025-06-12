@@ -542,8 +542,6 @@ export class OfficeFloorScene extends Scene {
         
         // Trigger scene transition after final narration
         setTimeout(() => {
-          // For now, we'll unlock movement. In the future, this could trigger a scene change
-          // Example: window.dispatchEvent(new CustomEvent('changeScene', { detail: { sceneName: 'next-scene' } }));
           window.dispatchEvent(new CustomEvent('storyNarration', {
             detail: { message: "And that's how our story began..." }
           }));
@@ -561,12 +559,40 @@ export class OfficeFloorScene extends Scene {
             console.log('✅ Devon locked at his new desk position');
           }
           
-          // For now, unlock after the complete story to allow user to explore
+          // Final ending message
           setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('lockPlayerMovement', {
-              detail: { locked: false }
+            window.dispatchEvent(new CustomEvent('storyNarration', {
+              detail: { message: "The End. Thank you for playing! 💕" }
             }));
-          }, 3000);
+            
+            console.log('🎯 Game complete - both characters permanently settled at their desks');
+            
+            // Apply dark filter and show final modal after a brief pause
+            setTimeout(() => {
+              // Apply dark screen filter
+              window.dispatchEvent(new CustomEvent('applyScreenFilter', {
+                detail: { 
+                  type: 'darken',
+                  intensity: 0.4, // 40% darker
+                  duration: 2000 // 2 second fade in
+                }
+              }));
+              
+              // Show final chapter modal after the filter starts
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('showModal', {
+                  detail: { 
+                    title: "Chapter 1: The day we met",
+                    message: "Love you musu",
+                    type: 'ending',
+                    persistent: true // Modal stays on screen
+                  }
+                }));
+              }, 1000); // 1 second delay to let filter start
+              
+            }, 1500); // 1.5 second pause after "The End" message
+            
+          }, 2000);
           
         }, 3000);
       }, 2000);
@@ -581,9 +607,9 @@ export class OfficeFloorScene extends Scene {
     
     // Prevent standing up if the story sequence is complete
     if (this.storyCompleted) {
-      console.log('🔒 Cannot stand up - story sequence complete, characters locked at desks');
+      console.log('🔒 Cannot stand up - story sequence complete, game ended');
       window.dispatchEvent(new CustomEvent('storyNarration', {
-        detail: { message: "This is where I belong now... right next to Devon." }
+        detail: { message: "This is where our story ends... right here, next to Devon. Perfect." }
       }));
       return;
     }
@@ -1069,6 +1095,11 @@ export class OfficeFloorScene extends Scene {
   }
 
   private updateNPCMovements(deltaTime: number): void {
+    // If story is completed, don't move any NPCs - they're all settled in their final positions
+    if (this.storyCompleted) {
+      return;
+    }
+    
     this.npcMovementData.forEach(data => {
       if (data.waypoints.length === 0) return;
       
