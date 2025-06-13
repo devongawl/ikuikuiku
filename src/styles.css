@@ -161,6 +161,37 @@ body {
   opacity: 1;
 }
 
+/* Title Screen */
+#title-screen {
+  font-family: 'Press Start 2P', cursive;
+}
+
+#title-screen h1 {
+  animation: titleGlow 2s ease-in-out infinite alternate;
+}
+
+#title-screen button {
+  animation: buttonPulse 2s ease-in-out infinite;
+}
+
+@keyframes titleGlow {
+  from {
+    text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.7);
+  }
+  to {
+    text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.7), 0 0 20px rgba(255, 228, 181, 0.5);
+  }
+}
+
+@keyframes buttonPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
 /* Mobile touch indicator */
 @media (max-width: 768px) {
   .navigation-hint {
@@ -176,6 +207,20 @@ body {
   .scene-title {
     font-size: 12px;
     padding: 10px 20px;
+  }
+
+  /* Title Screen Mobile Responsive */
+  #title-screen h1 {
+    font-size: 32px !important;
+  }
+  
+  #title-screen p {
+    font-size: 12px !important;
+  }
+  
+  #title-screen button {
+    font-size: 14px !important;
+    padding: 12px 24px !important;
   }
 }
 

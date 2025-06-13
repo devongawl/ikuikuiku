@@ -43,6 +43,10 @@ class RelationshipStoryGame {
   private cameraTransitionStartPos: THREE.Vector3 = new THREE.Vector3();
   private cameraTransitionStartLookAt: THREE.Vector3 = new THREE.Vector3();
 
+  // Title screen state
+  private titleScreen: HTMLDivElement | null = null;
+  private gameStarted: boolean = false;
+
   constructor() {
     // Initialize Three.js core
     this.scene = new THREE.Scene();
@@ -73,7 +77,7 @@ class RelationshipStoryGame {
     // Set up event listeners
     this.setupEventListeners();
 
-    // Initialize the game
+    // Initialize the game with title screen
     this.init();
   }
 
@@ -238,28 +242,139 @@ class RelationshipStoryGame {
     // Register all scenes
     this.registerScenes();
 
-    // Load character with FBX Animated Woman model (blonde/light skin)
-    this.characterController.loadFBXCharacter(
-      'models/Animated Woman/Animated Woman.fbx',
-      'models/Animated Woman/LightSkin.png'
-    ).then((character) => {
-      this.scene.add(character);
-    });
-
-    // Show welcome message
-    this.dialogueSystem.show(
-      "Tuesday Morning - September 15th...",
-      3000
-    );
-
-    // Load the apartment scene for Day We Met story
-    this.loadScene('apartment-scene');
+    // Show title screen first
+    this.showTitleScreen();
 
     // Create debug panel
     this.createDebugPanel();
 
     // Start the animation loop
     this.animate();
+  }
+
+  private showTitleScreen(): void {
+    // Create title screen overlay
+    this.titleScreen = document.createElement('div');
+    this.titleScreen.id = 'title-screen';
+    this.titleScreen.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: url('assets/title screen.png');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      opacity: 0;
+      transition: opacity 1s ease-in-out;
+    `;
+
+    // Create title text container
+    const titleContainer = document.createElement('div');
+    titleContainer.style.cssText = `
+      text-align: center;
+      margin-bottom: 60px;
+    `;
+
+    // Add subtitle
+    const subtitle = document.createElement('p');
+    subtitle.textContent = 'An Interactive Journey';
+    subtitle.style.cssText = `
+      font-family: 'Press Start 2P', cursive;
+      font-size: 16px;
+      color: #F5DEB3;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+      margin: 0;
+      letter-spacing: 1px;
+    `;
+
+    titleContainer.appendChild(subtitle);
+
+    // Create "Begin your day" button
+    const beginButton = document.createElement('button');
+    beginButton.textContent = 'Begin your day';
+    beginButton.style.cssText = `
+      font-family: 'Press Start 2P', cursive;
+      font-size: 18px;
+      color: #8B4513;
+      background: linear-gradient(45deg, #FFE4B5, #F5DEB3);
+      border: 3px solid #8B4513;
+      border-radius: 15px;
+      padding: 15px 30px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    `;
+
+    // Add hover effects
+    beginButton.addEventListener('mouseenter', () => {
+      beginButton.style.transform = 'scale(1.05)';
+      beginButton.style.background = 'linear-gradient(45deg, #F5DEB3, #DEB887)';
+      beginButton.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.4)';
+    });
+
+    beginButton.addEventListener('mouseleave', () => {
+      beginButton.style.transform = 'scale(1)';
+      beginButton.style.background = 'linear-gradient(45deg, #FFE4B5, #F5DEB3)';
+      beginButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+    });
+
+    // Add click handler to start the game
+    beginButton.addEventListener('click', () => {
+      this.startGame();
+    });
+
+    this.titleScreen.appendChild(titleContainer);
+    this.titleScreen.appendChild(beginButton);
+    document.body.appendChild(this.titleScreen);
+
+    // Fade in the title screen
+    setTimeout(() => {
+      if (this.titleScreen) {
+        this.titleScreen.style.opacity = '1';
+      }
+    }, 100);
+  }
+
+  private startGame(): void {
+    if (this.gameStarted || !this.titleScreen) return;
+    
+    this.gameStarted = true;
+
+    // Fade out title screen
+    this.titleScreen.style.opacity = '0';
+    
+    setTimeout(() => {
+      // Remove title screen
+      if (this.titleScreen && this.titleScreen.parentNode) {
+        this.titleScreen.parentNode.removeChild(this.titleScreen);
+        this.titleScreen = null;
+      }
+
+      // Load character with FBX Animated Woman model (blonde/light skin)
+      this.characterController.loadFBXCharacter(
+        'models/Animated Woman/Animated Woman.fbx',
+        'models/Animated Woman/LightSkin.png'
+      ).then((character) => {
+        this.scene.add(character);
+      });
+
+      // Show welcome message
+      this.dialogueSystem.show(
+        "Tuesday Morning - September 15th...",
+        3000
+      );
+
+      // Load the apartment scene for Day We Met story
+      this.loadScene('apartment-scene');
+    }, 1000); // Wait for fade out to complete
   }
 
   private registerScenes(): void {
