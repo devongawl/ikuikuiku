@@ -11,6 +11,7 @@ import { ApartmentScene } from './scenes/ApartmentScene';
 import { CrossyRoadScene } from './scenes/CrossyRoadScene';
 import { OfficeBuildingScene } from './scenes/OfficeBuildingScene';
 import { OfficeFloorScene } from './scenes/OfficeFloorScene';
+import { TitleScreen } from './scenes/TitleScreen';
 import type { Memory } from './types';
 
 // Core game class
@@ -43,10 +44,6 @@ class RelationshipStoryGame {
   private cameraTransitionStartPos: THREE.Vector3 = new THREE.Vector3();
   private cameraTransitionStartLookAt: THREE.Vector3 = new THREE.Vector3();
 
-  // Title screen state
-  private titleScreen: HTMLDivElement | null = null;
-  private gameStarted: boolean = false;
-
   constructor() {
     // Initialize Three.js core
     this.scene = new THREE.Scene();
@@ -77,7 +74,7 @@ class RelationshipStoryGame {
     // Set up event listeners
     this.setupEventListeners();
 
-    // Initialize the game with title screen
+    // Initialize the game
     this.init();
   }
 
@@ -242,8 +239,15 @@ class RelationshipStoryGame {
     // Register all scenes
     this.registerScenes();
 
-    // Show title screen first
-    this.showTitleScreen();
+    // Load character with FBX Animated Woman model (blonde/light skin)
+    // But don't add to scene yet - will be added when game starts
+    this.characterController.loadFBXCharacter(
+      'models/Animated Woman/Animated Woman.fbx',
+      'models/Animated Woman/LightSkin.png'
+    );
+
+    // Load the title screen first
+    this.loadScene('title-screen');
 
     // Create debug panel
     this.createDebugPanel();
@@ -252,132 +256,32 @@ class RelationshipStoryGame {
     this.animate();
   }
 
-  private showTitleScreen(): void {
-    // Create title screen overlay
-    this.titleScreen = document.createElement('div');
-    this.titleScreen.id = 'title-screen';
-    this.titleScreen.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-image: url('assets/title screen.png');
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 2000;
-      opacity: 0;
-      transition: opacity 1s ease-in-out;
-    `;
-
-    // Create title text container
-    const titleContainer = document.createElement('div');
-    titleContainer.style.cssText = `
-      text-align: center;
-      margin-bottom: 60px;
-    `;
-
-    // Add subtitle
-    const subtitle = document.createElement('p');
-    subtitle.textContent = 'An Interactive Journey';
-    subtitle.style.cssText = `
-      font-family: 'Press Start 2P', cursive;
-      font-size: 16px;
-      color: #F5DEB3;
-      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
-      margin: 0;
-      letter-spacing: 1px;
-    `;
-
-    titleContainer.appendChild(subtitle);
-
-    // Create "Begin your day" button
-    const beginButton = document.createElement('button');
-    beginButton.textContent = 'Begin your day';
-    beginButton.style.cssText = `
-      font-family: 'Press Start 2P', cursive;
-      font-size: 18px;
-      color: #8B4513;
-      background: linear-gradient(45deg, #FFE4B5, #F5DEB3);
-      border: 3px solid #8B4513;
-      border-radius: 15px;
-      padding: 15px 30px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    `;
-
-    // Add hover effects
-    beginButton.addEventListener('mouseenter', () => {
-      beginButton.style.transform = 'scale(1.05)';
-      beginButton.style.background = 'linear-gradient(45deg, #F5DEB3, #DEB887)';
-      beginButton.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.4)';
-    });
-
-    beginButton.addEventListener('mouseleave', () => {
-      beginButton.style.transform = 'scale(1)';
-      beginButton.style.background = 'linear-gradient(45deg, #FFE4B5, #F5DEB3)';
-      beginButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
-    });
-
-    // Add click handler to start the game
-    beginButton.addEventListener('click', () => {
-      this.startGame();
-    });
-
-    this.titleScreen.appendChild(titleContainer);
-    this.titleScreen.appendChild(beginButton);
-    document.body.appendChild(this.titleScreen);
-
-    // Fade in the title screen
-    setTimeout(() => {
-      if (this.titleScreen) {
-        this.titleScreen.style.opacity = '1';
-      }
-    }, 100);
-  }
-
+  // Method called when "Begin your day" is clicked
   private startGame(): void {
-    if (this.gameStarted || !this.titleScreen) return;
-    
-    this.gameStarted = true;
+    // Add character to scene when game starts
+    const character = this.characterController.getCharacter();
+    if (character) {
+      this.scene.add(character);
+    }
 
-    // Fade out title screen
-    this.titleScreen.style.opacity = '0';
-    
-    setTimeout(() => {
-      // Remove title screen
-      if (this.titleScreen && this.titleScreen.parentNode) {
-        this.titleScreen.parentNode.removeChild(this.titleScreen);
-        this.titleScreen = null;
-      }
+    // Show welcome message
+    this.dialogueSystem.show(
+      "Tuesday Morning - September 15th...",
+      3000
+    );
 
-      // Load character with FBX Animated Woman model (blonde/light skin)
-      this.characterController.loadFBXCharacter(
-        'models/Animated Woman/Animated Woman.fbx',
-        'models/Animated Woman/LightSkin.png'
-      ).then((character) => {
-        this.scene.add(character);
-      });
-
-      // Show welcome message
-      this.dialogueSystem.show(
-        "Tuesday Morning - September 15th...",
-        3000
-      );
-
-      // Load the apartment scene for Day We Met story
-      this.loadScene('apartment-scene');
-    }, 1000); // Wait for fade out to complete
+    // Load the apartment scene for Day We Met story
+    this.loadScene('apartment-scene');
   }
 
   private registerScenes(): void {
+    // Register title screen
+    const titleScreen = new TitleScreen();
+    titleScreen.setOnBeginCallback(() => {
+      this.startGame();
+    });
+    this.sceneManager.registerScene('title-screen', titleScreen);
+    
     // Register test scene
     this.sceneManager.registerScene('test-scene', new TestScene());
     
@@ -402,6 +306,13 @@ class RelationshipStoryGame {
     if (this.cameraLocked) {
       console.log('🎥 Releasing camera lock due to scene change');
       this.releaseCameraLock();
+    }
+    
+    // Handle background for title screen
+    if (sceneName === 'title-screen') {
+      this.scene.background = null; // Remove background for title screen
+    } else {
+      this.scene.background = new THREE.Color(0x87CEEB); // Restore sky blue for game scenes
     }
     
     const scene = await this.sceneManager.loadScene(sceneName);
@@ -491,7 +402,16 @@ class RelationshipStoryGame {
   }
 
   private adjustCameraForScene(scene: THREE.Group): void {
-    // Smooth camera transition to focus on the scene
+    // Special handling for title screen
+    if (scene.name === 'title-screen') {
+      // Position camera to view the title screen - centered on the plane
+      this.camera.position.set(0, 0, 0);
+      this.camera.lookAt(0, 0, -5);
+      this.currentLookAtTarget.set(0, 0, -5);
+      return;
+    }
+
+    // Smooth camera transition to focus on the scene for game scenes
     const characterPos = this.characterController.getSmoothPosition();
     const targetPosition = new THREE.Vector3(
       characterPos.x + this.cameraDistance, 
@@ -508,6 +428,11 @@ class RelationshipStoryGame {
   }
 
   private smoothCameraFollow(deltaTime: number): void {
+    // Don't follow camera on title screen
+    const currentScene = this.sceneManager.getCurrentScene();
+    if (currentScene && currentScene.name === 'title-screen') {
+      return;
+    }
     
     // Handle camera transition to lock target
     if (this.cameraTransitioning && this.cameraLockTarget) {
@@ -715,6 +640,7 @@ class RelationshipStoryGame {
   private getSceneDisplayName(sceneName: string): string {
     // Convert scene names to readable display names
     const displayNames: Record<string, string> = {
+      'title-screen': 'Title Screen',
       'test-scene': 'Test Scene',
       'office-scene': 'Office Scene', 
       'apartment-scene': 'Apartment',
