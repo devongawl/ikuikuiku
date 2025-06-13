@@ -1,0 +1,10 @@
+# Custom Paintings Directory
+
+Place your PNG files here to use them as custom wall art in the game.
+
+Example usage:
+- my-artwork.png
+- family-photo.png  
+- abstract-painting.png
+
+These can then be loaded using the addCustomPainting() method in any scene. 
