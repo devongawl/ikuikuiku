@@ -64,7 +64,7 @@ class RelationshipStoryGame {
     this.collisionManager = new CollisionManager();
     this.clock = new THREE.Clock();
 
-    // Connect collision manager to character controller
+    // Connect collision manager to character controll
     this.characterController.setCollisionManager(this.collisionManager);
 
     // Add scene manager container to main scene
