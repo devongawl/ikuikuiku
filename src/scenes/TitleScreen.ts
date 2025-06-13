@@ -38,11 +38,12 @@ export class TitleScreen extends Scene {
     return new Promise((resolve, reject) => {
       const textureLoader = new THREE.TextureLoader();
       
-      // Try both possible paths for the title screen image
+      // Try paths that work with Vite build and GitHub Pages
       const possiblePaths = [
-        'assets/titleScreen.png',
-        '../assets/titleScreen.png',
-        '/assets/titleScreen.png'
+        'assets/titleScreen.png',           // Public directory path (preferred)
+        './assets/titleScreen.png',         // Explicit relative path
+        '../public/assets/titleScreen.png', // Development fallback
+        '/ikuikuiku/assets/titleScreen.png' // GitHub Pages base path
       ];
       
       let loadAttempt = 0;

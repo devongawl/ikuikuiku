@@ -28,27 +28,54 @@ export class AssetLoader {
       return gltf.scene.clone();
     }
 
-    // Start loading
+    // Try multiple possible paths for better production compatibility
+    const possiblePaths = [
+      path,                           // Original path
+      `./${path}`,                   // Explicit relative path
+      `/ikuikuiku/${path}`,          // GitHub Pages base path
+      `assets/${path.split('/').pop()}` // Try in assets folder
+    ];
+
+    // Start loading with fallback paths
     const loadPromise = new Promise<any>((resolve, reject) => {
-      this.gltfLoader.load(
-        path,
-        (gltf) => {
-          // Store the original
-          this.loadedAssets.set(assetName, gltf.scene);
-          this.loadingPromises.delete(assetName);
-          console.log(`Successfully loaded: ${assetName}`);
-          resolve(gltf);
-        },
-        (progress) => {
-          // Progress logging commented out to reduce console noise
-          // console.log(`Loading ${assetName}: ${(progress.loaded / progress.total * 100).toFixed(0)}%`);
-        },
-        (error) => {
-          this.loadingPromises.delete(assetName);
-          console.error(`Failed to load ${assetName}:`, error);
-          reject(error);
-        }
-      );
+      let currentAttempt = 0;
+      
+      const tryLoad = (currentPath: string) => {
+        console.log(`Attempting to load GLTF from: ${currentPath}`);
+        
+        this.gltfLoader.load(
+          currentPath,
+          (gltf) => {
+            // Store the original
+            this.loadedAssets.set(assetName, gltf.scene);
+            this.loadingPromises.delete(assetName);
+            console.log(`✅ Successfully loaded: ${assetName} from ${currentPath}`);
+            resolve(gltf);
+          },
+          (progress) => {
+            // Progress logging commented out to reduce console noise
+            // console.log(`Loading ${assetName}: ${(progress.loaded / progress.total * 100).toFixed(0)}%`);
+          },
+                     (error) => {
+             const errorMessage = error instanceof Error ? error.message : String(error);
+             console.warn(`❌ Failed to load ${assetName} from ${currentPath}:`, errorMessage);
+             currentAttempt++;
+            
+            if (currentAttempt < possiblePaths.length) {
+              // Try next path
+              tryLoad(possiblePaths[currentAttempt]);
+            } else {
+              // All paths failed
+              this.loadingPromises.delete(assetName);
+              console.error(`❌ All attempts failed to load ${assetName}`);
+              reject(new Error(`Failed to load ${assetName} from all attempted paths`));
+            }
+          }
+        );
+      };
+      
+      // Start with first path
+      tryLoad(possiblePaths[currentAttempt]);
     });
 
     this.loadingPromises.set(assetName, loadPromise);
@@ -69,21 +96,50 @@ export class AssetLoader {
       return await this.loadingPromises.get(assetName);
     }
 
+    // Try multiple possible paths for better production compatibility
+    const possiblePaths = [
+      path,                           // Original path
+      `./${path}`,                   // Explicit relative path
+      `/ikuikuiku/${path}`,          // GitHub Pages base path
+      `assets/${path.split('/').pop()}` // Try in assets folder
+    ];
+
     const loadPromise = new Promise<THREE.Texture>((resolve, reject) => {
-      this.textureLoader.load(
-        path,
-        (texture) => {
-          texture.colorSpace = THREE.SRGBColorSpace;
-          this.loadedAssets.set(assetName, texture);
-          this.loadingPromises.delete(assetName);
-          resolve(texture);
-        },
-        undefined,
-        (error) => {
-          this.loadingPromises.delete(assetName);
-          reject(error);
-        }
-      );
+      let currentAttempt = 0;
+      
+      const tryLoad = (currentPath: string) => {
+        console.log(`Attempting to load texture from: ${currentPath}`);
+        
+        this.textureLoader.load(
+          currentPath,
+          (texture) => {
+            texture.colorSpace = THREE.SRGBColorSpace;
+            this.loadedAssets.set(assetName, texture);
+            this.loadingPromises.delete(assetName);
+            console.log(`✅ Successfully loaded texture: ${assetName} from ${currentPath}`);
+            resolve(texture);
+          },
+          undefined,
+          (error) => {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.warn(`❌ Failed to load texture ${assetName} from ${currentPath}:`, errorMessage);
+            currentAttempt++;
+            
+            if (currentAttempt < possiblePaths.length) {
+              // Try next path
+              tryLoad(possiblePaths[currentAttempt]);
+            } else {
+              // All paths failed
+              this.loadingPromises.delete(assetName);
+              console.error(`❌ All attempts failed to load texture ${assetName}`);
+              reject(new Error(`Failed to load texture ${assetName} from all attempted paths`));
+            }
+          }
+        );
+      };
+      
+      // Start with first path
+      tryLoad(possiblePaths[currentAttempt]);
     });
 
     this.loadingPromises.set(assetName, loadPromise);
